@@ -22,6 +22,8 @@ from .run_index import (
     acquire_run_lock,
     recover_stale_running,
 )
+from .executor import Task, ExecutionResult, ResourceRequest, LocalExecutor, Executor
+from . import dialogue
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -49,4 +51,10 @@ __all__ = [
     "RunLockError",
     "acquire_run_lock",
     "recover_stale_running",
+    "Task",
+    "ExecutionResult",
+    "ResourceRequest",
+    "LocalExecutor",
+    "Executor",
+    "dialogue",
 ]
