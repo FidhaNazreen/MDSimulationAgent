@@ -82,6 +82,52 @@ def test_recognizes_inter_histidine():
     assert p.options["1"] == "H on NE2 only (HISE)"
 
 
+# `ASPARTIC ACID` and `GLUTAMIC ACID` are spelled with a space in pdb2gmx output.
+INTER_ASP_PROMPT = """\
+Which ASPARTIC ACID type do you want for residue 18
+0. Not protonated (charge -1) (ASP)
+1. Protonated (charge 0) (ASPH)
+
+Type a number:"""
+
+INTER_GLU_PROMPT = """\
+Which GLUTAMIC ACID type do you want for residue 7
+0. Not protonated (charge -1) (GLU)
+1. Protonated (charge 0) (GLUH)
+
+Type a number:"""
+
+
+def test_recognizes_aspartic_acid():
+    r = Pdb2GmxPromptRecognizer()
+    p = r.recognize(INTER_ASP_PROMPT)
+    assert p is not None
+    assert p.kind == PromptKind.INTER_RESIDUE_CHOICE
+    assert p.context == {"residue_type": "ASPARTIC ACID", "resid": 18}
+
+
+def test_recognizes_glutamic_acid():
+    r = Pdb2GmxPromptRecognizer()
+    p = r.recognize(INTER_GLU_PROMPT)
+    assert p is not None
+    assert p.kind == PromptKind.INTER_RESIDUE_CHOICE
+    assert p.context == {"residue_type": "GLUTAMIC ACID", "resid": 7}
+
+
+SS_PROMPT = """\
+  CYS127   SG981   0.197   1.072   1.721   1.313   2.799   2.622   2.934
+Link CYS-6 SG-48 and CYS-127 SG-981 (y/n) ?"""
+
+
+def test_recognizes_disulfide_yn():
+    r = Pdb2GmxPromptRecognizer()
+    p = r.recognize(SS_PROMPT)
+    assert p is not None
+    assert p.kind == PromptKind.SS_YN
+    assert p.context == {"resid_a": 6, "atom_a": 48, "resid_b": 127, "atom_b": 981}
+    assert "y" in p.options and "n" in p.options
+
+
 def test_returns_none_for_unrelated_output():
     r = Pdb2GmxPromptRecognizer()
     assert r.recognize("Some prior log line about hydrogen bonding network\n") is None

@@ -36,7 +36,22 @@ def run(ctx: StepContext) -> StepOutcome:
     chain_res_counts: dict[str, Counter[str]] = defaultdict(Counter)
     his_residues: list[dict[str, int | str]] = []
     cys_residues: list[dict[str, int | str]] = []
+    titratable_residues: list[dict[str, int | str]] = []
     seen_residue_keys: set[tuple[str, str, int]] = set()  # (resname, chain, resid)
+
+    # Every residue type that pdb2gmx -inter will prompt about.
+    titratable_restypes = {
+        "LYS": "LYSINE",
+        "ARG": "ARGININE",
+        "ASP": "ASPARTIC ACID",
+        "GLU": "GLUTAMIC ACID",
+        "GLN": "GLUTAMINE",
+        "HIS": "HISTIDINE",
+        "HID": "HISTIDINE",
+        "HIE": "HISTIDINE",
+        "HIP": "HISTIDINE",
+        "CYS": "CYSTEINE",
+    }
 
     for line in text.splitlines():
         if not line.startswith("ATOM"):
@@ -56,12 +71,20 @@ def run(ctx: StepContext) -> StepOutcome:
             his_residues.append({"chain": chain, "resid": resid, "as_read": resname})
         elif resname == "CYS":
             cys_residues.append({"chain": chain, "resid": resid})
+        if resname in titratable_restypes:
+            titratable_residues.append({
+                "chain": chain,
+                "resid": resid,
+                "residue_name": resname,
+                "prompt_name": titratable_restypes[resname],
+            })
 
     observations = {
         "chains": sorted(chain_res_counts.keys()),
         "residue_counts_by_chain": {k: dict(v) for k, v in chain_res_counts.items()},
         "histidines": his_residues,
         "cysteines": cys_residues,
+        "titratable_residues": titratable_residues,
     }
     obs_path = ctx.step_dir / "observations.json"
     obs_path.write_text(json.dumps(observations, indent=2, sort_keys=True))

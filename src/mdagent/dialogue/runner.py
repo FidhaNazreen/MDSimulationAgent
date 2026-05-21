@@ -220,6 +220,11 @@ class DialogueRunner:
         return result, diagnostics
 
 
+def _normalize_pty_eol(s: str) -> str:
+    """PTYs emit `\\r\\n`; normalize to `\\n` so recognizer regexes work."""
+    return s.replace("\r\n", "\n").replace("\r", "\n")
+
+
 def _read_until_recognizable_or_eof(
     child: pexpect.spawn,
     recognizer: PromptRecognizer,
@@ -232,7 +237,8 @@ def _read_until_recognizable_or_eof(
     """Read from the child until the recognizer would recognize a prompt or the child exits.
 
     Reads one chunk at a time (small timeout per read), accumulates, and checks
-    the recognizer after each chunk. Returns the new data appended since the call.
+    the recognizer after each chunk. Returns the new data appended since the call,
+    with PTY CRLF normalized to LF.
     """
     deadline = time.monotonic() + timeout_s
     new_data_parts: list[str] = []
@@ -255,7 +261,7 @@ def _read_until_recognizable_or_eof(
             continue
         except pexpect.exceptions.EOF:
             if child.before:
-                new_data_parts.append(child.before)
+                new_data_parts.append(_normalize_pty_eol(child.before))
             return "".join(new_data_parts)
 
         if not chunk:
@@ -263,6 +269,7 @@ def _read_until_recognizable_or_eof(
                 return "".join(new_data_parts)
             continue
 
+        chunk = _normalize_pty_eol(chunk)
         new_data_parts.append(chunk)
         accumulator += chunk
 

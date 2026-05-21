@@ -46,10 +46,18 @@ _TER_RE = re.compile(
 )
 
 _INTER_RE = re.compile(
-    r"Which\s+(?P<restype>LYSINE|ARGININE|ASPARTATE|GLUTAMATE|GLUTAMINE|HISTIDINE|CYSTEINE)"
+    r"Which\s+(?P<restype>LYSINE|ARGININE|ASPARTIC\ ACID|GLUTAMIC\ ACID|GLUTAMINE|HISTIDINE|CYSTEINE)"
     r"\s+type\s+do\s+you\s+want\s+for\s+residue\s+(?P<resid>\d+)\s*\n"
     r"(?P<options>(?:\d+\.\s.*\n)+)"
     r"\s*\n?Type\s+a\s+number:\s*\Z",
+    re.MULTILINE,
+)
+
+# Disulfide auto-detection prompt. Emitted by pdb2gmx for any CYS pair
+# within the cutoff (Sγ-Sγ < 0.25 nm by default).
+# Format example: `Link CYS-6 SG-48 and CYS-127 SG-981 (y/n) ?`
+_SS_RE = re.compile(
+    r"Link\s+CYS-(?P<resid_a>\d+)\s+SG-(?P<atom_a>\d+)\s+and\s+CYS-(?P<resid_b>\d+)\s+SG-(?P<atom_b>\d+)\s+\(y/n\)\s+\?\s*\Z",
     re.MULTILINE,
 )
 
@@ -69,6 +77,9 @@ class Pdb2GmxPromptRecognizer:
         m = _INTER_RE.search(buffer)
         if m:
             return self._inter_prompt(m, buffer[-1500:])
+        m = _SS_RE.search(buffer)
+        if m:
+            return self._ss_prompt(m, buffer[-1500:])
         m = _TER_RE.search(buffer)
         if m:
             return self._ter_prompt(m, buffer[-1500:])
@@ -87,6 +98,20 @@ class Pdb2GmxPromptRecognizer:
             raw_text=tail,
             options=opts,
             context={"residue": m.group("res"), "resid": int(m.group("num"))},
+        )
+
+    @staticmethod
+    def _ss_prompt(m: re.Match[str], tail: str) -> Prompt:
+        return Prompt(
+            kind=PromptKind.SS_YN,
+            raw_text=tail,
+            options={"y": "yes — form the disulfide bond", "n": "no — leave free CYS"},
+            context={
+                "resid_a": int(m.group("resid_a")),
+                "atom_a": int(m.group("atom_a")),
+                "resid_b": int(m.group("resid_b")),
+                "atom_b": int(m.group("atom_b")),
+            },
         )
 
     @staticmethod

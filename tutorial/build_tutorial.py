@@ -467,26 +467,48 @@ When you see a failure, the run's REPORT.md will say
 structured failure reason. Surfaced clearly in the inspect output.
 """),
     md("""
-## What's available right now (slices 1–6)
+## Two pipeline modes
 
-- Soluble protein-only systems (no ligands / nucleic acids / membranes).
-- OPLS-AA / AMBER99SB-ILDN / CHARMM36 force fields (need matching water model).
+Two `pipeline_mode` values change the contract:
+
+- **`tutorial_reproduction`** (default). Matches the canonical GROMACS lysozyme
+  tutorial. `pdb2gmx` runs without `-inter`; every per-residue protonation
+  state is auto-resolved by gmx (HIS tautomer from H-bond geometry;
+  LYS+/ARG+/ASP-/GLU- fixed defaults).
+- **`general_md_prep`**. Every titratable residue (LYS/ARG/ASP/GLU/GLN/HIS/CYS)
+  becomes a per-residue prompt that the `Pdb2GmxPromptRecognizer` answers
+  from a structured plan (defaults: pH-7 reasonable for OPLS-AA).
+  Disulfides are auto-accepted from structural distance (`(y/n) ?` SS prompt
+  answered `y`). Each answer is recorded per-residue in
+  `step_04_topology/protonation_decisions.json` with both `planned` and
+  `actual` (from the DialogueRunner exchange log) for full auditability.
+
+To exercise general mode, set `"pipeline_mode": "general_md_prep"` in the
+config. The pipeline reads `step_03_structure_prep/observations.json` for
+the list of titratable residues, applies pH-7 defaults, and drives
+`pdb2gmx -inter`.
+
+## What's available right now (slices 1–7)
+
+- Soluble protein-only systems.
+- OPLS-AA / AMBER99SB-ILDN / CHARMM36 force fields.
 - Dodecahedron / cubic / octahedron boxes.
 - Neutralize-only or physiological-salt ion strategy.
 - Short steepest-descent EM as validation gate.
 - NVT + NPT equilibration with position restraints on the protein.
-- Free production MD (configurable length; disable with `production.enabled: false`).
-- **Built-in analysis: RMSD / Rg / RMSF time series + summary stats** (slice 6).
+- Free production MD.
+- Built-in analysis: RMSD / Rg / RMSF time series + summary stats.
 - mmCIF canonical ingest with coordinate_id_map (general mode).
 - Resume + fingerprint dependency invalidation across the full pipeline.
 - VMD / PyMOL / NGLview visualization with viewer-detect + scripts-always.
+- **`general_md_prep` mode with `-inter` per-residue protonation + auto-disulfide acceptance** (slice 7).
 
 ## Coming next
 
 - Remote executor (HPC / cloud GPU).
-- General-mode protonation (`-inter`) and disulfides (`-ss`) driven by the recognizer.
-- More analysis (H-bonds, secondary-structure, residue-residue contacts).
+- More analyses (H-bonds, secondary-structure, residue-residue contacts).
 - Energy file parsing (`gmx energy`) for NVT/NPT thermodynamic plots.
+- PROPKA-driven protonation in general mode (currently fixed pH-7 defaults).
 
 This notebook will be regenerated as each lands.
 """),
@@ -499,7 +521,7 @@ def build_notebook() -> nbf.notebooknode.NotebookNode:
     nb["metadata"] = {
         "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
         "language_info": {"name": "python", "version": "3.11"},
-        "tutorial": {"slice": "v0 + slice 5 (dynamics) + slice 6 (analysis)"},
+        "tutorial": {"slice": "v0 + slices 5-7 (dynamics, analysis, -inter)"},
     }
     return nb
 
