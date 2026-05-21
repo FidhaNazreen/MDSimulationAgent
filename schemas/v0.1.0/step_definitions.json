@@ -11,7 +11,7 @@
     {
       "step_id": "step_01_structure_ingest",
       "order": 1,
-      "depends_on_config_fields": ["input.pdb_id", "input.structure_path", "input.model_number", "input.biological_assembly", "input.chain_selection"],
+      "depends_on_config_fields": ["input.pdb_id", "input.structure_path", "input.model_number", "input.biological_assembly", "input.chain_selection", "input.format_preference"],
       "tool_components": ["mmcif_parser_code_hash", "fetcher_code_hash"]
     },
     {

@@ -31,6 +31,11 @@
         "chain_selection": {
           "type": "array",
           "items": { "type": "string", "minLength": 1, "maxLength": 4 }
+        },
+        "format_preference": {
+          "description": "Canonical ingest format. 'pdb' fetches the legacy .pdb (default in tutorial mode). 'mmcif' fetches the canonical mmCIF and derives a PDB for pdb2gmx, also emitting coordinate_id_map.json with injectivity verification. 'auto' picks mmcif in general_md_prep mode and pdb in tutorial_reproduction mode.",
+          "enum": ["pdb", "mmcif", "auto"],
+          "default": "auto"
         }
       },
       "oneOf": [

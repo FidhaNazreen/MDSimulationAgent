@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdagent/schemas/v0.1.0/coordinate_id_map.schema.json",
+  "title": "CoordinateIdMap",
+  "description": "Per-residue and per-atom mapping from canonical mmCIF identifiers to derived PDB chain/resid/icode tuples. Emitted by StructureIngest when mmCIF is canonical. Topology decisions are keyed by canonical IDs throughout the system; the bridge translates to derived IDs only at pdb2gmx invocation time, and the topology agent verifies the answer-to-residue mapping per-prompt against this file. Required to be injective for every topology-affecting residue; full-coordinate injectivity is enforced when feasible per R5 nitpick #1.",
+  "type": "object",
+  "required": ["schema_version", "injectivity", "residues"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "injectivity": {
+      "enum": ["verified", "lossy_with_diff"],
+      "description": "verified = every residue (and atom, when computed) is uniquely mappable from canonical→derived. lossy_with_diff = at least one collision occurred; see lossy_diff."
+    },
+    "lossy_diff": {
+      "type": "array",
+      "description": "Present iff injectivity=lossy_with_diff. Each entry describes a canonical-side residue/atom that collides with another under the derived PDB encoding.",
+      "items": {
+        "type": "object",
+        "required": ["canonical", "collides_with"],
+        "additionalProperties": false,
+        "properties": {
+          "canonical": { "$ref": "#/$defs/canonical_residue" },
+          "collides_with": { "type": "array", "items": { "$ref": "#/$defs/canonical_residue" } }
+        }
+      }
+    },
+    "residues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["canonical", "derived_pdb"],
+        "additionalProperties": false,
+        "properties": {
+          "canonical": { "$ref": "#/$defs/canonical_residue" },
+          "derived_pdb": { "$ref": "#/$defs/derived_residue" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "canonical_residue": {
+      "type": "object",
+      "required": ["model", "label_asym_id", "auth_asym_id", "label_seq_id", "auth_seq_id", "residue_name"],
+      "additionalProperties": false,
+      "properties": {
+        "model": { "type": "integer", "minimum": 1 },
+        "label_asym_id": { "type": "string" },
+        "auth_asym_id": { "type": "string" },
+        "label_seq_id": { "type": ["integer", "null"] },
+        "auth_seq_id": { "type": "integer" },
+        "insertion_code": { "type": "string" },
+        "residue_name": { "type": "string" }
+      }
+    },
+    "derived_residue": {
+      "type": "object",
+      "required": ["chain", "resid", "icode", "residue_name"],
+      "additionalProperties": false,
+      "properties": {
+        "chain": { "type": "string" },
+        "resid": { "type": "integer" },
+        "icode": { "type": "string" },
+        "residue_name": { "type": "string" }
+      }
+    }
+  }
+}
