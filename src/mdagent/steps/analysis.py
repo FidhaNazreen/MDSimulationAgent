@@ -1,17 +1,19 @@
-"""Analysis — RMSD / Rg / RMSF against the production trajectory.
+"""Analysis — RMSD / Rg / RMSF / H-bonds + NVT/NPT thermodynamics.
 
-Drives three standard GROMACS analysis tools:
+Drives standard GROMACS analysis tools against the production trajectory
+and the equilibration energy files:
 
   - `gmx rms`    → RMSD vs. starting structure (Backbone group by default).
   - `gmx gyrate` → radius of gyration (Protein).
   - `gmx rmsf`   → per-residue root-mean-square fluctuation.
-
-Each tool reads stdin to pick an index group; the analysis step pipes
-group names directly (modern gmx accepts case-insensitive names).
+  - `gmx hbond`  → intramolecular protein–protein H-bond count over time
+                   (best-effort; skipped silently if unavailable).
+  - `gmx energy` → Temperature curve from NVT (.edr) + Pressure/Density
+                   curves from NPT (.edr). Surfaced as the thermodynamic
+                   summary in the report.
 
 Emits an `analysis.json` aggregating the time series + summary stats
-plus the raw `.xvg` outputs for downstream plotting (matplotlib/seaborn
-on the user's side).
+plus the raw `.xvg` outputs for downstream plotting.
 """
 
 from __future__ import annotations
@@ -118,9 +120,52 @@ def run(ctx: StepContext) -> StepOutcome:
     executor_calls.append({"argv": argv, "exit_status": proc.returncode, "wall_time_s": wall})
     rmsf_ok = proc.returncode == 0 and rmsf_xvg.is_file()
 
+    # ---- H-bond count (protein–protein, intramolecular) ----------------
+    # `gmx hbond` in modern GROMACS uses -r / -t selection strings.
+    hbnum_xvg = ctx.step_dir / "hbnum.xvg"
+    argv = ["gmx", "hbond",
+            "-s", str(local_tpr), "-f", str(local_xtc),
+            "-num", str(hbnum_xvg),
+            "-r", "protein", "-t", "protein"]
+    proc, wall = _run_gmx(argv, ctx.step_dir, timeout=900.0)
+    executor_calls.append({"argv": argv, "exit_status": proc.returncode, "wall_time_s": wall})
+    hbond_ok = proc.returncode == 0 and hbnum_xvg.is_file()
+
+    # ---- Thermodynamic summary from NVT/NPT .edr ----------------------
+    # Read paths to the NVT and NPT .edr files from the run's index by
+    # walking the per-step dirs (parent of step_dir).
+    nvt_edr = ctx.run_root / "step_07_nvt" / "nvt.edr"
+    npt_edr = ctx.run_root / "step_08_npt" / "npt.edr"
+
+    temperature_xvg = ctx.step_dir / "temperature.xvg"
+    pressure_xvg = ctx.step_dir / "pressure.xvg"
+    density_xvg = ctx.step_dir / "density.xvg"
+
+    temperature_ok = pressure_ok = density_ok = False
+    if nvt_edr.is_file():
+        argv = ["gmx", "energy", "-f", str(nvt_edr), "-o", str(temperature_xvg)]
+        proc, wall = _run_gmx(argv, ctx.step_dir, stdin_bytes=b"Temperature\n0\n")
+        executor_calls.append({"argv": argv, "exit_status": proc.returncode, "wall_time_s": wall})
+        temperature_ok = proc.returncode == 0 and temperature_xvg.is_file()
+
+    if npt_edr.is_file():
+        argv = ["gmx", "energy", "-f", str(npt_edr), "-o", str(pressure_xvg)]
+        proc, wall = _run_gmx(argv, ctx.step_dir, stdin_bytes=b"Pressure\n0\n")
+        executor_calls.append({"argv": argv, "exit_status": proc.returncode, "wall_time_s": wall})
+        pressure_ok = proc.returncode == 0 and pressure_xvg.is_file()
+
+        argv = ["gmx", "energy", "-f", str(npt_edr), "-o", str(density_xvg)]
+        proc, wall = _run_gmx(argv, ctx.step_dir, stdin_bytes=b"Density\n0\n")
+        executor_calls.append({"argv": argv, "exit_status": proc.returncode, "wall_time_s": wall})
+        density_ok = proc.returncode == 0 and density_xvg.is_file()
+
     rmsd_rows = _parse_xvg(rmsd_xvg) if rmsd_ok else []
     rg_rows = _parse_xvg(rg_xvg) if rg_ok else []
     rmsf_rows = _parse_xvg(rmsf_xvg) if rmsf_ok else []
+    hbnum_rows = _parse_xvg(hbnum_xvg) if hbond_ok else []
+    temperature_rows = _parse_xvg(temperature_xvg) if temperature_ok else []
+    pressure_rows = _parse_xvg(pressure_xvg) if pressure_ok else []
+    density_rows = _parse_xvg(density_xvg) if density_ok else []
 
     # gmx rms emits (time_ns, rmsd_nm)
     rmsd_values = [row[1] for row in rmsd_rows if len(row) >= 2]
@@ -131,6 +176,16 @@ def run(ctx: StepContext) -> StepOutcome:
     # gmx rmsf emits (residue_index, rmsf_nm)
     rmsf_values = [row[1] for row in rmsf_rows if len(row) >= 2]
     rmsf_residues = [row[0] for row in rmsf_rows if len(row) >= 2]
+    # gmx hbond emits (time_ps, n_hbonds, n_pairs)
+    hbnum_values = [row[1] for row in hbnum_rows if len(row) >= 2]
+    hbnum_times = [row[0] for row in hbnum_rows if len(row) >= 2]
+    # gmx energy → (time_ps, value)
+    temperature_values = [row[1] for row in temperature_rows if len(row) >= 2]
+    temperature_times = [row[0] for row in temperature_rows if len(row) >= 2]
+    pressure_values = [row[1] for row in pressure_rows if len(row) >= 2]
+    pressure_times = [row[0] for row in pressure_rows if len(row) >= 2]
+    density_values = [row[1] for row in density_rows if len(row) >= 2]
+    density_times = [row[0] for row in density_rows if len(row) >= 2]
 
     analysis = {
         "rmsd": {
@@ -151,6 +206,32 @@ def run(ctx: StepContext) -> StepOutcome:
             "summary": _summary(rmsf_values),
             "by_residue": [{"resid": int(r), "rmsf": v} for r, v in zip(rmsf_residues, rmsf_values)],
         },
+        "hbonds": {
+            "ok": hbond_ok,
+            "units": {"time": "ps", "value": "count"},
+            "summary": _summary(hbnum_values),
+            "time_series": [{"t": t, "n": v} for t, v in zip(hbnum_times, hbnum_values)],
+        },
+        "thermodynamics": {
+            "temperature_K_nvt": {
+                "ok": temperature_ok,
+                "units": {"time": "ps", "value": "K"},
+                "summary": _summary(temperature_values),
+                "time_series": [{"t": t, "T": v} for t, v in zip(temperature_times, temperature_values)],
+            },
+            "pressure_bar_npt": {
+                "ok": pressure_ok,
+                "units": {"time": "ps", "value": "bar"},
+                "summary": _summary(pressure_values),
+                "time_series": [{"t": t, "P": v} for t, v in zip(pressure_times, pressure_values)],
+            },
+            "density_kgm3_npt": {
+                "ok": density_ok,
+                "units": {"time": "ps", "value": "kg/m^3"},
+                "summary": _summary(density_values),
+                "time_series": [{"t": t, "rho": v} for t, v in zip(density_times, density_values)],
+            },
+        },
     }
     analysis_path = ctx.step_dir / "analysis.json"
     analysis_path.write_text(json.dumps(analysis, indent=2, sort_keys=False))
@@ -160,7 +241,15 @@ def run(ctx: StepContext) -> StepOutcome:
         "content_hash": sha256_text(analysis_path.read_text()),
         "role": "analysis",
     }]
-    for p, role in [(rmsd_xvg, "rmsd_xvg"), (rg_xvg, "rg_xvg"), (rmsf_xvg, "rmsf_xvg")]:
+    for p, role in [
+        (rmsd_xvg, "rmsd_xvg"),
+        (rg_xvg, "rg_xvg"),
+        (rmsf_xvg, "rmsf_xvg"),
+        (hbnum_xvg, "hbnum_xvg"),
+        (temperature_xvg, "temperature_xvg"),
+        (pressure_xvg, "pressure_xvg"),
+        (density_xvg, "density_xvg"),
+    ]:
         if p.is_file():
             outputs.append({
                 "artifact_uri": f"local://{p}",
@@ -169,12 +258,20 @@ def run(ctx: StepContext) -> StepOutcome:
             })
 
     warnings: list[dict[str, Any]] = []
+    # Core trajectory analyses must succeed; thermodynamics + hbond are
+    # best-effort (gmx hbond is occasionally unstable on tiny trajectories).
     if not (rmsd_ok and rg_ok and rmsf_ok):
         warnings.append({
             "class": "io",
             "severity": "warning",
-            "message": "one or more analysis tools did not complete",
+            "message": "one or more core analyses did not complete",
             "context": {"rmsd_ok": rmsd_ok, "rg_ok": rg_ok, "rmsf_ok": rmsf_ok},
+        })
+    if not hbond_ok:
+        warnings.append({
+            "class": "io",
+            "severity": "info",
+            "message": "gmx hbond did not produce output (sometimes flaky on very short trajectories)",
         })
 
     return StepOutcome(
@@ -185,5 +282,9 @@ def run(ctx: StepContext) -> StepOutcome:
             "rmsd_summary": analysis["rmsd"]["summary"],
             "rg_summary": analysis["radius_of_gyration"]["summary"],
             "rmsf_summary": analysis["rmsf"]["summary"],
+            "hbond_summary": analysis["hbonds"]["summary"],
+            "thermo_summary": {
+                k: v["summary"] for k, v in analysis["thermodynamics"].items()
+            },
         },
     )

@@ -88,6 +88,24 @@ def test_analysis_runs_against_short_production(tmp_path: Path) -> None:
     assert (run_root / "step_10_analysis" / "gyrate.xvg").is_file()
     assert (run_root / "step_10_analysis" / "rmsf.xvg").is_file()
 
+    # Thermodynamics: NVT temperature curve + NPT pressure/density should
+    # all parse from the .edr files (gmx energy via stdin).
+    thermo = analysis["thermodynamics"]
+    assert thermo["temperature_K_nvt"]["ok"] is True, thermo
+    t_mean = thermo["temperature_K_nvt"]["summary"]["mean"]
+    # Temperature should be roughly near the target (300 K) — but with very
+    # short runs there's substantial noise; allow generous bounds.
+    assert 100 < t_mean < 500, f"NVT T mean {t_mean} K outside sane bounds"
+    assert thermo["pressure_bar_npt"]["ok"] is True
+    assert thermo["density_kgm3_npt"]["ok"] is True
+    # Lysozyme + water density should be ~1000 kg/m^3 (broad bounds for noise).
+    rho_mean = thermo["density_kgm3_npt"]["summary"]["mean"]
+    assert 800 < rho_mean < 1200, f"NPT density mean {rho_mean} outside sane bounds"
+
+    # H-bonds: best-effort. Don't hard-fail if hbond couldn't compute.
+    if analysis["hbonds"]["ok"]:
+        assert analysis["hbonds"]["summary"]["n"] > 0
+
 
 def test_analysis_skipped_when_production_disabled(tmp_path: Path) -> None:
     """If production is disabled, analysis should be marked 'skipped' (not 'failed')."""
