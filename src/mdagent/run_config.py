@@ -26,8 +26,18 @@ class RunConfig:
 
     @classmethod
     def from_file(cls, path: str | Path) -> "RunConfig":
+        """Load a run config from disk.
+
+        Relative `input.structure_path` is resolved against the *config
+        file's* parent directory so a config can ship with a local
+        structure and be invokable from any cwd.
+        """
+        path = Path(path).resolve()
         with open(path) as f:
             data = json.load(f)
+        structure_path = (data.get("input") or {}).get("structure_path")
+        if structure_path and not Path(structure_path).is_absolute():
+            data["input"]["structure_path"] = str((path.parent / structure_path).resolve())
         return cls(data)
 
     @classmethod

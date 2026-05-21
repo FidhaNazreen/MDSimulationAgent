@@ -1,0 +1,6 @@
+# Run outputs (every step writes a lot of state here)
+runs/*
+!runs/.gitkeep
+
+# macOS
+.DS_Store

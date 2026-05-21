@@ -31,10 +31,11 @@ build-backend = "uv_build"
 module-name = "mdagent"
 module-root = "src"
 namespace = false
-# Include schemas + skills + mdp templates as package data inside the wheel.
+# Ship the entire _resources tree (schemas + skills + starter_kit) as
+# package data. Glob is intentionally extension-free so .pdb / .sh /
+# .gitkeep / .gitignore etc. all make it into the wheel.
 source-include = [
-    "src/mdagent/_resources/**/*.json",
-    "src/mdagent/_resources/**/*.md",
+    "src/mdagent/_resources/**/*",
 ]
 
 [tool.pytest.ini_options]

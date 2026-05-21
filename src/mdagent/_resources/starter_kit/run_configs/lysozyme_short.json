@@ -1,0 +1,53 @@
+{
+  "schema_version": "0.1.0",
+  "pipeline_mode": "tutorial_reproduction",
+  "interaction_mode": "noninteractive_defaults",
+  "input": {
+    "structure_path": "../structures/1aki.pdb"
+  },
+  "force_field": "oplsaa",
+  "water_model": "spc",
+  "box": {
+    "geometry": "dodecahedron",
+    "padding_nm": 1.0,
+    "cutoff_nm": 1.0
+  },
+  "ion_strategy": {
+    "mode": "neutralize_only",
+    "cation": "NA",
+    "anion": "CL",
+    "random_seed": 42
+  },
+  "em": {
+    "step_cap": 1000,
+    "fmax_tol_kjmolnm": 1000.0
+  },
+  "nvt": {
+    "nsteps": 1000,
+    "dt_ps": 0.002,
+    "temperature_K": 300.0,
+    "random_seed": 42,
+    "nstxout_compressed": 100
+  },
+  "npt": {
+    "nsteps": 1000,
+    "dt_ps": 0.002,
+    "temperature_K": 300.0,
+    "pressure_bar": 1.0,
+    "nstxout_compressed": 100
+  },
+  "production": {
+    "enabled": true,
+    "nsteps": 2000,
+    "dt_ps": 0.002,
+    "temperature_K": 300.0,
+    "pressure_bar": 1.0,
+    "nstxout_compressed": 200
+  },
+  "analysis": {
+    "enabled": true
+  },
+  "tool_versions": {
+    "gromacs": "2026.2"
+  }
+}

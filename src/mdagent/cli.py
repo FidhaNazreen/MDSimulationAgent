@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from importlib.metadata import version as _pkg_version
@@ -212,33 +213,182 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 # ---- install-skills ----------------------------------------------------
 
 
-def cmd_install_skills(args: argparse.Namespace) -> int:
-    """Copy packaged SKILL.md files into a target `.claude/skills/` dir."""
+_MDAGENT_SKILL_MANIFEST = ".mdagent-install.json"
+
+
+def _install_skills_core(*, dest_root: Path, dry_run: bool, force: bool) -> dict[str, Any]:
+    """Materialize packaged skills into `dest_root` (= `.claude/skills/`).
+
+    Default: each shipped skill dir is rsync'd into dest_root/<name>/
+    (existing files overwritten). User-managed sibling skills are left alone.
+
+    --force: in addition, mdagent-managed skill dirs recorded in the previous
+    `.mdagent-install.json` (if any) are removed before re-copy, so removing
+    a skill from a newer mdagent version → clean state after `--force`.
+
+    Returns a payload dict suitable for embedding in larger CLI output.
+    """
     from ._resources import skills_dir
-    if args.user:
-        dest_root = Path.home() / ".claude" / "skills"
-    else:  # args.project is guaranteed by argparse mutex group
-        dest_root = Path(args.project).resolve() / ".claude" / "skills"
 
     src = skills_dir()
+    shipped_names = sorted(
+        p.name for p in src.iterdir()
+        if p.is_dir() and (p / "SKILL.md").is_file()
+    )
+
     written: list[str] = []
-    skipped: list[str] = []
-    for skill_path in sorted(src.iterdir()):
-        if not skill_path.is_dir() or not (skill_path / "SKILL.md").is_file():
-            continue
-        dest_dir = dest_root / skill_path.name
-        if args.dry_run:
+    removed: list[str] = []
+    previous_manifest: dict[str, Any] | None = None
+    manifest_path = dest_root / _MDAGENT_SKILL_MANIFEST
+    if manifest_path.is_file():
+        try:
+            previous_manifest = json.loads(manifest_path.read_text())
+        except json.JSONDecodeError:
+            previous_manifest = None
+
+    if force and not dry_run and previous_manifest is not None:
+        for prev_name in previous_manifest.get("managed_skills", []):
+            prev_dir = dest_root / prev_name
+            if prev_dir.is_dir():
+                shutil.rmtree(prev_dir)
+                removed.append(str(prev_dir))
+
+    for name in shipped_names:
+        skill_src = src / name
+        dest_dir = dest_root / name
+        if dry_run:
             written.append(f"would write {dest_dir / 'SKILL.md'}")
             continue
         dest_dir.mkdir(parents=True, exist_ok=True)
-        for sub in skill_path.iterdir():
+        for sub in skill_src.iterdir():
             if sub.is_file():
                 shutil.copy2(sub, dest_dir / sub.name)
                 written.append(str(dest_dir / sub.name))
             else:
                 shutil.copytree(sub, dest_dir / sub.name, dirs_exist_ok=True)
 
-    payload = {"destination": str(dest_root), "written": written, "skipped": skipped, "dry_run": bool(args.dry_run)}
+    if not dry_run:
+        dest_root.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(json.dumps({
+            "manifest_schema_version": "1.0.0",
+            "mdagent_version": _installed_version(),
+            "managed_skills": shipped_names,
+        }, indent=2))
+
+    return {
+        "destination": str(dest_root),
+        "written": written,
+        "removed": removed,
+        "managed_skills": shipped_names,
+        "dry_run": bool(dry_run),
+        "force": bool(force),
+    }
+
+
+def cmd_install_skills(args: argparse.Namespace) -> int:
+    """Copy packaged SKILL.md files into a target `.claude/skills/` dir."""
+    if args.user:
+        dest_root = Path.home() / ".claude" / "skills"
+    else:  # args.project is guaranteed by argparse mutex group
+        dest_root = Path(args.project).resolve() / ".claude" / "skills"
+    payload = _install_skills_core(
+        dest_root=dest_root,
+        dry_run=args.dry_run,
+        force=getattr(args, "force", False),
+    )
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+# ---- init-project ------------------------------------------------------
+
+
+def _starter_kit_dir() -> Path:
+    from ._resources import _filesystem_path
+    return _filesystem_path("mdagent._resources.starter_kit")
+
+
+def _load_starter_kit_manifest() -> dict[str, Any]:
+    kit = _starter_kit_dir()
+    return json.loads((kit / "MANIFEST.json").read_text())
+
+
+def _materialize_starter_kit(*, dest: Path, force: bool) -> dict[str, Any]:
+    """Copy every payload file in the starter kit manifest into `dest`.
+
+    Each file written via temp+atomic rename. Files marked `executable: true`
+    get `chmod 0755` after rename.
+    """
+    kit = _starter_kit_dir()
+    manifest = _load_starter_kit_manifest()
+    src_files = manifest["files"]
+
+    written: list[str] = []
+    for entry in src_files:
+        rel = entry["path"]
+        src_path = kit / rel
+        dest_path = dest / rel
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        if dest_path.exists() and not force:
+            # Refuse only triggers at the top level (caller); here we just
+            # overwrite (in --force mode), or skip (default if the file exists).
+            continue
+        # Temp+rename to keep the destination consistent on partial failures.
+        tmp = dest_path.with_suffix(dest_path.suffix + ".mdagent_tmp")
+        shutil.copy2(src_path, tmp)
+        os.replace(tmp, dest_path)
+        if entry.get("executable"):
+            os.chmod(dest_path, 0o755)
+        written.append(str(dest_path))
+
+    # Always write the kit's MANIFEST.json into the target (with our version baked in).
+    target_manifest = dict(manifest)
+    target_manifest["materialized_at"] = _utc_now_iso()
+    target_manifest["materialized_by_mdagent_version"] = _installed_version()
+    target_mf_path = dest / "MANIFEST.json"
+    target_mf_path.write_text(json.dumps(target_manifest, indent=2))
+    written.append(str(target_mf_path))
+
+    return {
+        "destination": str(dest),
+        "written": written,
+        "file_count": len(written),
+        "kit_manifest_schema_version": manifest.get("manifest_schema_version"),
+    }
+
+
+def _utc_now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def cmd_init_project(args: argparse.Namespace) -> int:
+    """Materialize the starter kit into a target directory."""
+    dest = Path(args.dir).resolve()
+    if dest.exists() and any(dest.iterdir()) and not args.force:
+        sys.stderr.write(
+            f"refusing to init non-empty directory: {dest}\n"
+            "Re-run with --force to overwrite kit files in place. Files outside the kit are left untouched.\n"
+        )
+        return 1
+    dest.mkdir(parents=True, exist_ok=True)
+
+    kit_payload = _materialize_starter_kit(dest=dest, force=args.force)
+
+    skills_payload: dict[str, Any] = {}
+    if not args.no_install_skills:
+        skills_payload = _install_skills_core(
+            dest_root=dest / ".claude" / "skills",
+            dry_run=False,
+            force=False,
+        )
+
+    payload = {
+        "action": "init-project",
+        "target": str(dest),
+        "kit": kit_payload,
+        "install_skills": skills_payload if skills_payload else "skipped (--no-install-skills)",
+    }
     print(json.dumps(payload, indent=2))
     return 0
 
@@ -371,7 +521,19 @@ def build_parser() -> argparse.ArgumentParser:
     sk_target.add_argument("--user", action="store_true", help="Install to ~/.claude/skills/")
     sk_target.add_argument("--project", metavar="DIR", help="Install to DIR/.claude/skills/")
     sk.add_argument("--dry-run", action="store_true")
+    sk.add_argument("--force", action="store_true",
+                    help="Remove previously-managed mdagent skill dirs before copying. "
+                         "Sibling user-owned skill dirs are left alone.")
     sk.set_defaults(func=cmd_install_skills)
+
+    # init-project
+    ip = sub.add_parser("init-project", help="Materialize the starter kit into a fresh directory.")
+    ip.add_argument("dir", metavar="DIR", help="Target directory (created if it doesn't exist).")
+    ip.add_argument("--force", action="store_true",
+                    help="Overwrite kit files in DIR. Files outside the kit are left alone.")
+    ip.add_argument("--no-install-skills", action="store_true",
+                    help="Skip the implicit `install-skills --project DIR` call.")
+    ip.set_defaults(func=cmd_init_project)
 
     # self-test
     st = sub.add_parser("self-test", help="Run an internal sanity check.")

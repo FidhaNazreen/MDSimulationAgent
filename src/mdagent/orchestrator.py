@@ -270,7 +270,10 @@ def run_workflow(
     machine without GROMACS still works.
     """
     cfg = RunConfig.from_file(run_config_path)
-    runs_root_p = Path(runs_root)
+    # Resolve to an absolute path so per-step argv (gmx -f <path>) doesn't
+    # depend on each step's cwd. The DialogueRunner / executor change cwd
+    # to the step dir, so relative arg paths would otherwise misresolve.
+    runs_root_p = Path(runs_root).resolve()
     runs_root_p.mkdir(parents=True, exist_ok=True)
 
     if run_id is None:

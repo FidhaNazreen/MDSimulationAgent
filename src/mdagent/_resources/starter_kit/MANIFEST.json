@@ -1,0 +1,16 @@
+{
+  "manifest_schema_version": "1.0.0",
+  "description": "Starter kit shipped with mdagent. Listed paths are payload files (excluding MANIFEST.json itself, which is written separately by `mdagent init-project`). Files marked executable get chmod 0755 on materialization.",
+  "files": [
+    {"path": "README.md", "executable": false},
+    {"path": ".gitignore", "executable": false},
+    {"path": "verify.sh", "executable": true},
+    {"path": "structures/1aki.pdb", "executable": false},
+    {"path": "structures/README.md", "executable": false},
+    {"path": "run_configs/lysozyme_short.json", "executable": false},
+    {"path": "run_configs/lysozyme_rcsb_tutorial.json", "executable": false},
+    {"path": "run_configs/general_md_prep_example.json", "executable": false},
+    {"path": "tutorial/getting_started.md", "executable": false},
+    {"path": "runs/.gitkeep", "executable": false}
+  ]
+}
