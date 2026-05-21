@@ -6,7 +6,7 @@ RunIndex and a shared StepContext object.
 """
 
 from .base import StepContext, StepOutcome
-from . import ingest, classifier, prep, topology, solvation, em, report
+from . import ingest, classifier, prep, topology, solvation, em, report, visualization
 
 __all__ = [
     "StepContext",
@@ -18,4 +18,5 @@ __all__ = [
     "solvation",
     "em",
     "report",
+    "visualization",
 ]

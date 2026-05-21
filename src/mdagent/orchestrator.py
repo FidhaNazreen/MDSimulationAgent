@@ -45,6 +45,9 @@ _STEP_INPUT_ROLES: dict[str, tuple[str, ...]] = {
     "step_04_topology": ("working_pdb",),
     "step_05_solvation": ("system_apo_gro", "system_apo_top", "posre"),
     "step_06_em": ("system_ions_gro", "system_ions_top"),
+    # Visualization can render any prior checkpoint by role; orchestrator
+    # feeds in every artifact emitted so far via `inputs_extra` (handled
+    # specially inside `run_workflow`).
     "step_07_visualization": (),
     "step_08_report": (),
 }
@@ -59,6 +62,7 @@ _STEP_MODULE: dict[str, str] = {
     "step_04_topology": "mdagent.steps.topology",
     "step_05_solvation": "mdagent.steps.solvation",
     "step_06_em": "mdagent.steps.em",
+    "step_07_visualization": "mdagent.steps.visualization",
     "step_08_report": "mdagent.steps.report",
 }
 
@@ -183,10 +187,11 @@ def run_workflow(
                 idx_step.status = "skipped"
                 index.write(index_path)
                 continue
-            if step_id == "step_07_visualization" and (cfg.get_field("visualization.mode") or "disabled") == "disabled":
-                idx_step.status = "skipped"
-                index.write(index_path)
-                continue
+            if step_id == "step_07_visualization":
+                if (cfg.get_field("visualization.mode") or "disabled") == "disabled":
+                    idx_step.status = "skipped"
+                    index.write(index_path)
+                    continue
 
             mod_path = _STEP_MODULE.get(step_id)
             if mod_path is None:
@@ -200,6 +205,14 @@ def run_workflow(
                 ref = artifacts_by_role.get(role)
                 if ref is not None:
                     inputs.append(dict(ref))
+            # Visualization wants everything that's been produced so far so
+            # it can render any requested checkpoint.
+            if step_id == "step_07_visualization":
+                checkpoint_roles = {"working_pdb", "system_apo_gro", "system_ions_gro", "em_gro"}
+                for role in checkpoint_roles:
+                    ref = artifacts_by_role.get(role)
+                    if ref is not None:
+                        inputs.append(dict(ref))
 
             step_dir = run_root / step_id
             step_dir.mkdir(parents=True, exist_ok=True)
