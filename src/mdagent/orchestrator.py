@@ -101,6 +101,88 @@ def _resolved_tool_components(step_id: str, run_config: RunConfig) -> dict[str, 
     return stub_components(declared)
 
 
+def _invalidate_outdated_steps(
+    *,
+    index: RunIndex,
+    run_config: RunConfig,
+    schema_hash: str,
+    code_hash: str,
+) -> dict[str, dict[str, str]]:
+    """Walk index in DAG order; for each succeeded step recompute its composite.
+
+    If the composite matches the recorded one, populate `artifacts_by_role`
+    with the step's persisted artifacts so downstream resumed steps see them.
+    If it mismatches (or the step has no recorded composite), invalidate the
+    step and all DAG descendants, and stop scanning (downstream is moot now).
+
+    Returns the populated artifacts_by_role for the loop in run_workflow.
+    """
+    artifacts_by_role: dict[str, dict[str, str]] = {}
+    for s in index.steps:
+        if s.status == "skipped":
+            continue
+        if s.status != "succeeded":
+            break
+        step_id = s.step_id
+        # Read inputs from this step's report — they're needed to recompute
+        # inputs_hash deterministically.
+        if not s.step_report_uri:
+            # No report → cannot verify, conservatively invalidate.
+            index.invalidate_from(step_id)
+            break
+        report_path = Path(s.step_report_uri.removeprefix("local://"))
+        if not report_path.is_file():
+            index.invalidate_from(step_id)
+            break
+        try:
+            report = json.loads(report_path.read_text())
+        except (OSError, json.JSONDecodeError):
+            index.invalidate_from(step_id)
+            break
+
+        # Skip steps that don't compute fingerprints (preflight / vis / report).
+        if step_id not in _STEP_MODULE:
+            # Still populate artifacts_by_role from the recorded outputs.
+            for art in (s.artifacts or []):
+                role = art.get("role")
+                if role:
+                    artifacts_by_role[role] = dict(art)
+            continue
+        if step_id in ("step_07_visualization", "step_08_report"):
+            for art in (s.artifacts or []):
+                role = art.get("role")
+                if role:
+                    artifacts_by_role[role] = dict(art)
+            continue
+
+        inputs = report.get("inputs", [])
+        try:
+            resolved_tools = _resolved_tool_components(step_id, run_config)
+            new_fp = compute_step_fingerprint(
+                step_id=step_id,
+                run_config=run_config,
+                inputs=inputs,
+                profile_hash=EMPTY_HASH,
+                schema_hash=schema_hash,
+                code_hash=code_hash,
+                resolved_tool_components=resolved_tools,
+            )
+        except Exception:  # noqa: BLE001 — any failure → invalidate to be safe
+            index.invalidate_from(step_id)
+            break
+
+        if s.fingerprint_composite != new_fp.composite:
+            index.invalidate_from(step_id)
+            break
+
+        # Composite matches — keep as succeeded; surface artifacts.
+        for art in (s.artifacts or []):
+            role = art.get("role")
+            if role:
+                artifacts_by_role[role] = dict(art)
+    return artifacts_by_role
+
+
 def _build_step_report(
     *,
     step_id: str,
@@ -172,17 +254,44 @@ def run_workflow(
     code_hash = sha256_source_files([str(p) for p in code_files if p is not None])
 
     with acquire_run_lock(run_root) as _lock_fd:
-        index = RunIndex.initialize(run_id=run_id, run_config_hash=cfg.whole_config_hash())
-        index.lock_holder_pid = _read_pid()
         index_path = run_root / "index.json"
-        index.write(index_path)
-
-        recover_stale_running(index)
+        if index_path.is_file():
+            # Resume path — load existing index, recover stale state, then
+            # walk fingerprints to invalidate steps whose preconditions
+            # changed (input hash, config, profile, mode, tool, schema, code).
+            index = RunIndex.read(index_path)
+            # Config might have changed since the last run — update the
+            # recorded hash. Step-level fingerprints catch the actual drift.
+            index.run_config_hash = cfg.whole_config_hash()
+            index.lock_holder_pid = _read_pid()
+            stale_fixed = recover_stale_running(index)
+            artifacts_by_role = _invalidate_outdated_steps(
+                index=index,
+                run_config=cfg,
+                schema_hash=schema_hash,
+                code_hash=code_hash,
+            )
+            index.write(index_path)
+        else:
+            # Fresh run.
+            index = RunIndex.initialize(run_id=run_id, run_config_hash=cfg.whole_config_hash())
+            index.lock_holder_pid = _read_pid()
+            index.write(index_path)
+            recover_stale_running(index)
+            artifacts_by_role: dict[str, dict[str, str]] = {}
 
         # Walk steps in DAG order; skip Preflight + Visualization in v0.
-        artifacts_by_role: dict[str, dict[str, str]] = {}
         for idx_step in index.steps:
             step_id = idx_step.step_id
+            # Resume optimization: a step already in 'succeeded' state has a
+            # valid fingerprint (we verified it in _invalidate_outdated_steps).
+            # Its artifacts are already in artifacts_by_role. Don't re-run.
+            if idx_step.status == "succeeded":
+                continue
+            # Likewise, leave 'skipped' alone on resume.
+            if idx_step.status == "skipped":
+                continue
+
             if step_id == "step_00_preflight_early":
                 idx_step.status = "skipped"
                 index.write(index_path)
@@ -225,8 +334,12 @@ def run_workflow(
                 attempt=idx_step.current_attempt or 1,
             )
 
-            idx_step.status = "running"
+            # On a fresh attempt (first run, or after invalidation/failure),
+            # bump the attempt counter so the step report has a unique
+            # `attempt` number per retry.
+            ctx.attempt = (idx_step.current_attempt or 0) + 1
             idx_step.current_attempt = ctx.attempt
+            idx_step.status = "running"
             index.write(index_path)
 
             started = utc_now_iso()
