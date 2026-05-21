@@ -24,6 +24,8 @@ from .run_index import (
 )
 from .executor import Task, ExecutionResult, ResourceRequest, LocalExecutor, Executor
 from . import dialogue
+from . import steps
+from .orchestrator import run_workflow
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -57,4 +59,6 @@ __all__ = [
     "LocalExecutor",
     "Executor",
     "dialogue",
+    "steps",
+    "run_workflow",
 ]

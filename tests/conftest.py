@@ -7,6 +7,24 @@ from typing import Any
 import pytest
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--run-slow",
+        action="store_true",
+        default=False,
+        help="Run tests marked 'slow' (the 1AKI golden-path end-to-end test).",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    # If `-m slow` was passed on the command line, honor it (pytest already handles it).
+    # If `--run-slow` was passed, unmark items so 'not slow' wouldn't filter them out.
+    if not config.getoption("--run-slow"):
+        return
+    # Allow slow tests to run when --run-slow is set, regardless of the default '-m not slow'.
+    config.option.markexpr = ""
+
+
 @pytest.fixture
 def minimal_run_config() -> dict[str, Any]:
     """The smallest run_config that validates against run_config.schema.json."""

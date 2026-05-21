@@ -23,4 +23,7 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m 'not slow'"
+markers = [
+    "slow: opt-in test that runs the full GROMACS golden path (use --run-slow or -m slow)",
+]

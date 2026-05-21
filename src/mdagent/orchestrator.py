@@ -1,0 +1,273 @@
+"""Orchestrator — the v0 golden-path runner.
+
+Runs the nine-step DAG in order, acquiring a run lock, persisting per-step
+step_report and step_fingerprint records, and maintaining the run index.
+The visualization step is wired but skipped in v0 unless explicitly enabled.
+
+Steps consume artifacts from upstream step outputs via `ctx.inputs`, which
+the orchestrator assembles from the index's artifact roles.
+"""
+
+from __future__ import annotations
+
+import importlib
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .fingerprint import EMPTY_HASH, StepFingerprint, compute_step_fingerprint, step_definition
+from .hashing import sha256_dir, sha256_source_files
+from .provenance import (
+    em_tool_components,
+    solvation_tool_components,
+    stub_components,
+    topology_tool_components,
+)
+from .run_config import RunConfig
+from .run_index import IndexStep, RunIndex, acquire_run_lock, recover_stale_running, utc_now_iso
+from .schemas import schemas_dir
+from .step_report import (
+    ArtifactRef,
+    ExecutorCall,
+    FailureReason,
+    StepReport,
+    Warning_,
+)
+from .steps.base import StepContext, StepOutcome
+
+# Which inputs each step expects (by role name) from the upstream pipeline.
+_STEP_INPUT_ROLES: dict[str, tuple[str, ...]] = {
+    "step_00_preflight_early": (),
+    "step_01_structure_ingest": (),
+    "step_02_classifier": ("working_pdb",),
+    "step_03_structure_prep": ("working_pdb",),
+    "step_04_topology": ("working_pdb",),
+    "step_05_solvation": ("system_apo_gro", "system_apo_top", "posre"),
+    "step_06_em": ("system_ions_gro", "system_ions_top"),
+    "step_07_visualization": (),
+    "step_08_report": (),
+}
+
+# Which step module to invoke for each step_id. step_00 (Preflight) and
+# step_07 (Visualization) are skipped in v0 — preflight is implicit (we
+# already error out at config-load time), and visualization is opt-in.
+_STEP_MODULE: dict[str, str] = {
+    "step_01_structure_ingest": "mdagent.steps.ingest",
+    "step_02_classifier": "mdagent.steps.classifier",
+    "step_03_structure_prep": "mdagent.steps.prep",
+    "step_04_topology": "mdagent.steps.topology",
+    "step_05_solvation": "mdagent.steps.solvation",
+    "step_06_em": "mdagent.steps.em",
+    "step_08_report": "mdagent.steps.report",
+}
+
+
+def _resolved_tool_components(step_id: str, run_config: RunConfig) -> dict[str, str]:
+    """Build the resolved tool-components dict for each step.
+
+    Steps that don't need real tool resolution get stub components — stable
+    placeholders that don't change unless the agent code does.
+    """
+    sdef = step_definition(step_id)
+    declared = list(sdef.get("tool_components", []))
+    ff = run_config.get_field("force_field") or "oplsaa"
+
+    if step_id == "step_04_topology":
+        from .hashing import sha256_text
+        return topology_tool_components(
+            ff_name=ff,
+            transcript_catalog_hash=sha256_text("catalog::pdb2gmx@2026.2-v0"),
+            dialogue_runner_code_hash=sha256_text("DialogueRunner::v0"),
+        )
+    if step_id == "step_05_solvation":
+        from .hashing import sha256_text
+        return solvation_tool_components(
+            ff_name=ff,
+            water_include_hash=sha256_text(f"water::{run_config.get_field('water_model') or 'spc'}"),
+            ion_include_hash=sha256_text("ions::oplsaa-default"),
+        )
+    if step_id == "step_06_em":
+        from .hashing import sha256_text
+        from .mdp import EM_MDP_TEMPLATE
+        return em_tool_components(
+            ff_name=ff,
+            em_mdp_template_hash=sha256_text(EM_MDP_TEMPLATE),
+        )
+    return stub_components(declared)
+
+
+def _build_step_report(
+    *,
+    step_id: str,
+    attempt: int,
+    status: str,
+    started_at: str,
+    inputs: list[dict[str, str]],
+    outcome: StepOutcome,
+) -> StepReport:
+    return StepReport(
+        step_id=step_id,
+        attempt=attempt,
+        status=status,
+        started_at=started_at,
+        ended_at=utc_now_iso(),
+        inputs=[ArtifactRef(**i) for i in inputs],
+        outputs=[ArtifactRef(**o) for o in outcome.outputs],
+        executor_calls=[ExecutorCall(**c) for c in outcome.executor_calls],
+        warnings=[Warning_(cls=w["class"], severity=w["severity"], message=w["message"], context=w.get("context")) for w in outcome.warnings],
+        failure_reason=(FailureReason(**outcome.failure) if outcome.failure else None),
+    )
+
+
+def run_workflow(
+    *,
+    run_config_path: str | Path,
+    runs_root: str | Path,
+    run_id: str | None = None,
+) -> tuple[Path, RunIndex]:
+    """Execute the v0 golden-path workflow.
+
+    Returns `(run_root, index)`. Raises on lock failure or unhandled errors;
+    per-step failures are recorded in the index (status='failed') and
+    propagated by stopping the run there.
+    """
+    cfg = RunConfig.from_file(run_config_path)
+    runs_root_p = Path(runs_root)
+    runs_root_p.mkdir(parents=True, exist_ok=True)
+
+    if run_id is None:
+        run_id = f"run-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    run_root = runs_root_p / run_id
+    run_root.mkdir(parents=True, exist_ok=True)
+
+    # Save the resolved run_config alongside the run for provenance.
+    (run_root / "run_config.json").write_text(
+        json.dumps(cfg.data, indent=2, sort_keys=True)
+    )
+
+    schema_hash = sha256_dir(schemas_dir())
+    from . import (
+        dialogue,
+        executor,
+        fingerprint,
+        hashing,
+        mdp,
+        provenance,
+        run_config as rc_mod,
+        run_index as ri_mod,
+        schemas,
+        step_report,
+        steps,
+    )
+    code_files = (
+        [Path(m.__file__) for m in (dialogue, executor, fingerprint, hashing, mdp, provenance, rc_mod, ri_mod, schemas, step_report)]
+        + [Path(m.__file__) for m in (steps,)]
+        + [Path(m.__file__) for m in (steps.ingest, steps.classifier, steps.prep, steps.topology, steps.solvation, steps.em, steps.report)]
+    )
+    code_hash = sha256_source_files([str(p) for p in code_files if p is not None])
+
+    with acquire_run_lock(run_root) as _lock_fd:
+        index = RunIndex.initialize(run_id=run_id, run_config_hash=cfg.whole_config_hash())
+        index.lock_holder_pid = _read_pid()
+        index_path = run_root / "index.json"
+        index.write(index_path)
+
+        recover_stale_running(index)
+
+        # Walk steps in DAG order; skip Preflight + Visualization in v0.
+        artifacts_by_role: dict[str, dict[str, str]] = {}
+        for idx_step in index.steps:
+            step_id = idx_step.step_id
+            if step_id == "step_00_preflight_early":
+                idx_step.status = "skipped"
+                index.write(index_path)
+                continue
+            if step_id == "step_07_visualization" and (cfg.get_field("visualization.mode") or "disabled") == "disabled":
+                idx_step.status = "skipped"
+                index.write(index_path)
+                continue
+
+            mod_path = _STEP_MODULE.get(step_id)
+            if mod_path is None:
+                idx_step.status = "skipped"
+                index.write(index_path)
+                continue
+
+            # Assemble inputs for this step from prior outputs by role.
+            inputs: list[dict[str, str]] = []
+            for role in _STEP_INPUT_ROLES.get(step_id, ()):
+                ref = artifacts_by_role.get(role)
+                if ref is not None:
+                    inputs.append(dict(ref))
+
+            step_dir = run_root / step_id
+            step_dir.mkdir(parents=True, exist_ok=True)
+            ctx = StepContext(
+                step_id=step_id,
+                run_root=run_root,
+                step_dir=step_dir,
+                run_config=cfg,
+                inputs=inputs,
+                attempt=idx_step.current_attempt or 1,
+            )
+
+            idx_step.status = "running"
+            idx_step.current_attempt = ctx.attempt
+            index.write(index_path)
+
+            started = utc_now_iso()
+            mod = importlib.import_module(mod_path)
+            outcome: StepOutcome = mod.run(ctx)
+
+            new_status = "succeeded" if outcome.ok else "failed"
+            report = _build_step_report(
+                step_id=step_id,
+                attempt=ctx.attempt,
+                status=new_status,
+                started_at=started,
+                inputs=inputs,
+                outcome=outcome,
+            )
+            report_path = step_dir / "step_report.json"
+            report.write(report_path)
+
+            # Fingerprint (only for succeeded steps — fingerprinting a failed
+            # step is meaningless for invalidation purposes).
+            if outcome.ok:
+                resolved_tools = _resolved_tool_components(step_id, cfg)
+                fp = compute_step_fingerprint(
+                    step_id=step_id,
+                    run_config=cfg,
+                    inputs=inputs,
+                    profile_hash=EMPTY_HASH,
+                    schema_hash=schema_hash,
+                    code_hash=code_hash,
+                    resolved_tool_components=resolved_tools,
+                )
+                fp_path = step_dir / "step_fingerprint.json"
+                fp.write(fp_path)
+                idx_step.step_fingerprint_uri = f"local://{fp_path}"
+                idx_step.fingerprint_composite = fp.composite
+
+            idx_step.status = new_status
+            idx_step.step_report_uri = f"local://{report_path}"
+            idx_step.artifacts = list(outcome.outputs)
+            index.write(index_path)
+
+            if not outcome.ok:
+                # Stop the run on the first failure (v0 has no auto-retry).
+                break
+
+            # Register outputs by role for downstream consumption.
+            for art in outcome.outputs:
+                role = art.get("role")
+                if role:
+                    artifacts_by_role[role] = art
+
+        return run_root, index
+
+
+def _read_pid() -> int:
+    import os
+    return os.getpid()

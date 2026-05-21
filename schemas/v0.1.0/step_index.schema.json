@@ -46,11 +46,11 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["role", "uri", "content_hash"],
+              "required": ["role", "artifact_uri", "content_hash"],
               "additionalProperties": false,
               "properties": {
                 "role": { "type": "string", "description": "Logical role within the run, e.g. 'final_topology', 'em_gro'." },
-                "uri": { "type": "string" },
+                "artifact_uri": { "type": "string" },
                 "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
               }
             }
