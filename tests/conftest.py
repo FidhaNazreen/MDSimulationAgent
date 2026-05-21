@@ -14,15 +14,31 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=False,
         help="Run tests marked 'slow' (the 1AKI golden-path end-to-end test).",
     )
+    parser.addoption(
+        "--run-wheel",
+        action="store_true",
+        default=False,
+        help="Run tests marked 'wheel' (build + install the wheel into a clean venv).",
+    )
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    # If `-m slow` was passed on the command line, honor it (pytest already handles it).
-    # If `--run-slow` was passed, unmark items so 'not slow' wouldn't filter them out.
-    if not config.getoption("--run-slow"):
-        return
-    # Allow slow tests to run when --run-slow is set, regardless of the default '-m not slow'.
-    config.option.markexpr = ""
+    """Custom marker filtering — supports the standard `-m` plus our convenience flags."""
+    include_slow = config.getoption("--run-slow")
+    include_wheel = config.getoption("--run-wheel")
+    user_markexpr = config.option.markexpr
+    if include_slow and include_wheel:
+        # Both flags active: drop the default exclusion so everything runs.
+        if user_markexpr in ("", "not slow and not wheel"):
+            config.option.markexpr = ""
+    elif include_slow:
+        # Slow but not wheel: exclude only the wheel marker.
+        if user_markexpr in ("", "not slow and not wheel"):
+            config.option.markexpr = "not wheel"
+    elif include_wheel:
+        # Wheel but not slow: exclude only the slow marker.
+        if user_markexpr in ("", "not slow and not wheel"):
+            config.option.markexpr = "not slow"
 
 
 @pytest.fixture

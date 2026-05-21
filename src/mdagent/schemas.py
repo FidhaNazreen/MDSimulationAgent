@@ -12,12 +12,14 @@ import jsonschema
 SCHEMA_VERSION = "0.1.0"
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent.parent
-
-
 def schemas_dir() -> Path:
-    return _repo_root() / "schemas" / f"v{SCHEMA_VERSION}"
+    """Resolve the packaged schemas/<version>/ dir.
+
+    Works for both editable and standard wheel installs via
+    `importlib.resources.files`.
+    """
+    from ._resources import schemas_dir as _resources_schemas_dir
+    return _resources_schemas_dir(SCHEMA_VERSION)
 
 
 @lru_cache(maxsize=None)

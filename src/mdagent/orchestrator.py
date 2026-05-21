@@ -253,12 +253,21 @@ def run_workflow(
     run_config_path: str | Path,
     runs_root: str | Path,
     run_id: str | None = None,
+    stop_after_step_id: str | None = None,
+    skip_network_check: bool = False,
+    skip_viewer_check: bool = False,
+    skip_gmx_version_check: bool = False,
 ) -> tuple[Path, RunIndex]:
-    """Execute the v0 golden-path workflow.
+    """Execute the pipeline.
 
     Returns `(run_root, index)`. Raises on lock failure or unhandled errors;
     per-step failures are recorded in the index (status='failed') and
     propagated by stopping the run there.
+
+    If `stop_after_step_id` is supplied, the orchestrator marks every step
+    after the named one as `skipped`. Doctor preflight derives requirements
+    from the resulting planned-step set, so e.g. a `prep`-only run on a
+    machine without GROMACS still works.
     """
     cfg = RunConfig.from_file(run_config_path)
     runs_root_p = Path(runs_root)
@@ -325,6 +334,35 @@ def run_workflow(
             index.write(index_path)
             recover_stale_running(index)
             artifacts_by_role: dict[str, dict[str, str]] = {}
+
+        # Apply --stop-after by marking everything past the named step
+        # 'skipped' upfront (idempotent if the step was already past).
+        if stop_after_step_id is not None:
+            stop_step = next((s for s in index.steps if s.step_id == stop_after_step_id), None)
+            if stop_step is not None:
+                for s in index.steps:
+                    if s.order > stop_step.order and s.status not in ("succeeded", "failed"):
+                        s.status = "skipped"
+                index.write(index_path)
+
+        # Doctor preflight — config + planned-step-aware. Failures abort the
+        # run before any compute happens.
+        from .doctor import check_for_run
+        planned_step_ids = {s.step_id for s in index.steps if s.status not in ("skipped", "succeeded", "failed")}
+        # We still want doctor to see steps that have already 'succeeded' on a
+        # resumed run — they don't trigger fresh checks but they do indicate
+        # that gmx already worked previously. Conservatively include them.
+        planned_step_ids |= {s.step_id for s in index.steps if s.status == "succeeded"}
+        doctor_result = check_for_run(
+            cfg,
+            planned_step_ids=planned_step_ids,
+            skip_gmx_version=skip_gmx_version_check,
+            skip_network=skip_network_check,
+            skip_viewer=skip_viewer_check,
+        )
+        if not doctor_result.ok:
+            failures = {k: {"status": v.status, "suggestion": v.suggestion} for k, v in doctor_result.checks.items() if v.status == "fail"}
+            raise RuntimeError(f"doctor preflight failed: {failures}")
 
         # Walk steps in DAG order; skip Preflight + Visualization in v0.
         for idx_step in index.steps:

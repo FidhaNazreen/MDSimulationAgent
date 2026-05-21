@@ -12,20 +12,35 @@ dependencies = [
     "gemmi>=0.6",
 ]
 
+[project.scripts]
+mdagent = "mdagent.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "nbformat>=5.10",
+    "build>=1.0",
 ]
 
 [build-system]
 requires = ["uv_build>=0.11.15,<0.12.0"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+module-name = "mdagent"
+module-root = "src"
+namespace = false
+# Include schemas + skills + mdp templates as package data inside the wheel.
+source-include = [
+    "src/mdagent/_resources/**/*.json",
+    "src/mdagent/_resources/**/*.md",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -m 'not slow'"
+addopts = "-q -m 'not slow and not wheel'"
 markers = [
     "slow: opt-in test that runs the full GROMACS golden path (use --run-slow or -m slow)",
+    "wheel: opt-in test that builds + installs the wheel (use --run-wheel)",
 ]

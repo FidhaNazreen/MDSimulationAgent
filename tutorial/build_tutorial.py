@@ -54,21 +54,40 @@ This notebook is generated from `tutorial/build_tutorial.py` — re-run that
 script to refresh after the architecture changes.
 """),
     md("""
-## Prerequisites
+## Install — one command, then it's transferable
 
-- Python ≥ 3.11
-- `uv` (the package manager; `brew install uv` on macOS)
-- GROMACS ≥ 2024 (`brew install gromacs`)
-- Internet (to fetch structures from RCSB)
-
-Once cloned, install:
+`mdagent` is shipped as an installable tool that lives outside any
+particular project. After install you can use the skills from any
+directory; no `cd` into a checkout required.
 
 ```bash
-cd MDSimulationAgent
-uv sync
+# 1. Install uv (skip if you already have it)
+brew install uv     # macOS — or: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Install mdagent (pinned to a git tag for reproducibility)
+uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.1.0
+
+# 3. Make sure GROMACS is on PATH (for any step past prep)
+brew install gromacs   # macOS
+
+# 4. Install the Claude skills so Claude Code can discover them
+mdagent install-skills --user                  # → ~/.claude/skills/
+# OR  mdagent install-skills --project /path/to/myproject  # → ./.claude/skills/
 ```
 
-The agents are then invocable via `python -m mdagent` or directly from Python.
+Verify the install:
+
+```bash
+mdagent --version            # → mdagent 0.1.0
+mdagent doctor --gmx-required
+mdagent self-test resources  # confirms schemas + skills load
+```
+
+To upgrade to a newer release, reinstall with a fresh tag:
+
+```bash
+uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.2.0
+```
 """),
     md("""
 ## What's in the box
@@ -117,7 +136,13 @@ mode_hash, tool_hash, schema_hash, code_hash)` — that's what makes
 **resume-after-crash** and **config-drift invalidation** correct (slice 4c).
 """),
     md("""
-## Quick start — lysozyme prep in 15 s; full equilibration in ~90 s
+## Quick start — runs anywhere `mdagent` is installed
+
+After the one-time install above you don't need a repo checkout. Pick any
+working directory; the runs go under `--runs-root` and the skills locate
+the package via PATH.
+
+
 
 Three flavors:
 
@@ -130,14 +155,13 @@ Three flavors:
 The fastest test invocation (prep + EM + NVT + NPT, ~90 s on an M-series laptop):
 """),
     code("""
-# From the repo root:
 import subprocess, json
 from pathlib import Path
 
-runs_root = Path("tutorial/runs").resolve()
+runs_root = Path("./tutorial_runs").resolve()
 runs_root.mkdir(parents=True, exist_ok=True)
 
-# Build a quick config: tutorial mode, 2 ps NVT + 2 ps NPT, no production.
+# Build a config: tutorial mode, 2 ps NVT + 2 ps NPT, no production (~90 s).
 cfg = {
     "schema_version": "0.1.0",
     "pipeline_mode": "tutorial_reproduction",
@@ -154,8 +178,9 @@ cfg = {
 cfg_path = runs_root / "tutorial_quick.json"
 cfg_path.write_text(json.dumps(cfg, indent=2, sort_keys=True))
 
+# `mdagent` is on PATH after `uv tool install`. No `cd`, no `uv run`.
 result = subprocess.run(
-    ["uv", "run", "python", "-m", "mdagent", "run-workflow",
+    ["mdagent", "run-workflow",
      "--runs-root", str(runs_root),
      "--config", str(cfg_path),
      "--run-id", "tutorial-1aki"],
@@ -168,8 +193,8 @@ That command produced a directory full of artifacts under
 `tutorial/runs/tutorial-1aki/`. The most important file is `REPORT.md`:
 """),
     code("""
-report_path = Path("tutorial/runs/tutorial-1aki/REPORT.md")
-print(report_path.read_text())
+report_path = Path("./tutorial_runs/tutorial-1aki/REPORT.md")
+print(report_path.read_text() if report_path.is_file() else "(no report yet — run the cell above first)")
 """),
     md("""
 For 1AKI tutorial-mode you should see:
@@ -310,16 +335,12 @@ If anything goes wrong mid-run (system reboot, killed process, killed terminal),
 re-invoking `run-workflow` with the **same `--run-id`** picks up where it left off:
 """),
     code("""
-# Hypothetical: simulate that step_05_solvation crashed.
-# The orchestrator will:
-#  1. Detect the existing runs/tutorial-1aki/index.json
-#  2. Walk fingerprints: step_01..step_04 still valid → keep their artifacts
-#  3. recover_stale_running on any step left in 'running' state
-#  4. Re-run from the first non-succeeded step
-#  5. attempt counter bumps on each retry
+# Same run_id → orchestrator detects existing index.json, recovers
+# stale-running steps via fingerprint walk, restarts at the first
+# non-succeeded step. Upstream attempts stay at 1.
 
 result = subprocess.run(
-    ["uv", "run", "python", "-m", "mdagent", "run-workflow",
+    ["mdagent", "run-workflow",
      "--runs-root", str(runs_root),
      "--pdb-id", "1AKI",
      "--run-id", "tutorial-1aki"],   # same run_id
@@ -341,8 +362,7 @@ The `inspect` subcommand prints the step ledger + the REPORT:
 """),
     code("""
 result = subprocess.run(
-    ["uv", "run", "python", "-m", "mdagent", "inspect",
-     "--run-root", str(runs_root / "tutorial-1aki")],
+    ["mdagent", "inspect", "--run-root", str(runs_root / "tutorial-1aki")],
     capture_output=True, text=True,
 )
 print(result.stdout[:2000])  # truncate
@@ -488,7 +508,7 @@ config. The pipeline reads `step_03_structure_prep/observations.json` for
 the list of titratable residues, applies pH-7 defaults, and drives
 `pdb2gmx -inter`.
 
-## What's available right now (slices 1–7)
+## What's available right now (slices 1–9)
 
 - Soluble protein-only systems.
 - OPLS-AA / AMBER99SB-ILDN / CHARMM36 force fields.
@@ -501,7 +521,9 @@ the list of titratable residues, applies pH-7 defaults, and drives
 - mmCIF canonical ingest with coordinate_id_map (general mode).
 - Resume + fingerprint dependency invalidation across the full pipeline.
 - VMD / PyMOL / NGLview visualization with viewer-detect + scripts-always.
-- **`general_md_prep` mode with `-inter` per-residue protonation + auto-disulfide acceptance** (slice 7).
+- `general_md_prep` mode with `-inter` per-residue protonation + auto-disulfide acceptance.
+- H-bond count + NVT/NPT thermodynamics (Temperature/Pressure/Density) in the analysis output.
+- **Transferable installation** via `uv tool install` (slice 9): skills + schemas live inside the package; works from any directory after one install command.
 
 ## Coming next
 
@@ -521,7 +543,7 @@ def build_notebook() -> nbf.notebooknode.NotebookNode:
     nb["metadata"] = {
         "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
         "language_info": {"name": "python", "version": "3.11"},
-        "tutorial": {"slice": "v0 + slices 5-7 (dynamics, analysis, -inter)"},
+        "tutorial": {"slice": "slices 1-9 (transferable install)"},
     }
     return nb
 
