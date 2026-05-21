@@ -1,6 +1,6 @@
 ---
 name: md-run-workflow
-description: Run the full GROMACS molecular-dynamics preparation pipeline on a protein from PDB. Goes ingest → classify → prep → topology (via DialogueRunner) → solvation (with four-stage charge accounting) → short EM (validation gate) → report. Produces a directory of immutable per-step artifacts (gro/top/itp/tpr/log/json) plus a top-level REPORT.md whose first line is `readiness: ready | ready_with_warnings | blocked | not_validated`. Trigger when the user wants to run an MD prep simulation on a protein, set up lysozyme in water, prepare a system for minimization, or any phrasing like "do the lysozyme tutorial", "build a topology for PDB X", "solvate and neutralize", "run EM as a sanity check". The user can give a PDB id ("1AKI"), a local PDB/CIF path, or hand you a pre-built run_config.json. v0 only supports soluble protein-only systems; ligands/nucleic acids/membranes fail fast at the classifier with a structured reason. Default profile reproduces the canonical GROMACS lysozyme tutorial: OPLS-AA + SPC water + dodecahedron box (1.0 nm padding) + neutralize-only ion strategy + 1000-step steepest-descent EM.
+description: Run the full GROMACS molecular-dynamics pipeline on a protein from PDB. Goes ingest → classify → prep → topology (via DialogueRunner) → solvation (with four-stage charge accounting) → short EM (validation gate) → NVT equilibration → NPT equilibration → production MD → report. Produces a directory of immutable per-step artifacts (gro/top/itp/tpr/log/xtc/json) plus a top-level REPORT.md whose first line is `readiness: ready | ready_with_warnings | blocked | not_validated`. Trigger when the user wants to run an MD simulation on a protein, set up lysozyme in water, prepare a system for minimization, equilibrate + simulate a protein, or any phrasing like "do the lysozyme tutorial", "build a topology for PDB X", "solvate and neutralize", "run EM as a sanity check", "equilibrate this protein at 300 K", "run a 10 ns production MD of <PDB>". The user can give a PDB id ("1AKI"), a local PDB/CIF path, or hand you a pre-built run_config.json. Only supports soluble protein-only systems; ligands/nucleic acids/membranes fail fast at the classifier with a structured reason. Default profile reproduces the canonical GROMACS lysozyme tutorial: OPLS-AA + SPC water + dodecahedron box (1.0 nm padding) + neutralize-only ion strategy + 1000-step steepest-descent EM + 100 ps NVT + 100 ps NPT + 1 ns production at 300 K / 1 bar. Set `production.enabled: false` for a prep-only run.
 ---
 
 # md:run-workflow
@@ -77,18 +77,21 @@ After the run, the directory layout is:
 <runs_root>/<run_id>/
 ├── run_config.json               # the resolved config (immutable)
 ├── index.json                    # step state machine + artifact hashes
-├── step_01_structure_ingest/     # original.pdb + working.pdb
+├── step_01_structure_ingest/     # original.pdb + working.pdb (+ coordinate_id_map.json in mmcif mode)
 ├── step_02_classifier/           # classification.json
 ├── step_03_structure_prep/       # observations.json + mutations.json
 ├── step_04_topology/             # system_apo.gro/.top + posre.itp + topology_plan.json + pdb2gmx_transcript.json
 ├── step_05_solvation/            # system_ions.gro/.top/.tpr + charge_accounting.json
 ├── step_06_em/                   # em.gro + em.log + em_convergence.json
-├── step_08_report/               # report step bookkeeping (REPORT.md proper lives at the run root)
+├── step_07_nvt/                  # nvt.gro + nvt.cpt + nvt.xtc + nvt.log + nvt.edr
+├── step_08_npt/                  # npt.gro + npt.cpt + npt.xtc + npt.log + npt.edr
+├── step_09_production/           # production.{gro,cpt,xtc,log,edr,tpr} — the trajectory
+├── step_10_visualization/        # (optional) Tcl/PML scripts + PNGs
 └── REPORT.md                     # the human-facing summary
 ```
 
 Headlines from `REPORT.md`:
-- **`readiness: ready`** — system passed every gate; user can hand `step_06_em/em.gro` and `step_05_solvation/system_ions.top` to a downstream NVT/NPT/production run.
+- **`readiness: ready`** — every gate passed: EM converged, NVT/NPT equilibration completed, production trajectory in `step_09_production/production.xtc`.
 - **`readiness: ready_with_warnings`** — there are chemistry/physics caveats worth reading before moving on.
 - **`readiness: blocked`** — a hard validator failed; the run_root's step reports identify the failure.
 - **`readiness: not_validated`** — EM didn't converge within the step cap. User can re-run with a higher `em.step_cap`.

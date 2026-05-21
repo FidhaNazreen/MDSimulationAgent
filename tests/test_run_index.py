@@ -29,8 +29,11 @@ def test_initialize_uses_step_definitions(tmp_path: Path) -> None:
         "step_04_topology",
         "step_05_solvation",
         "step_06_em",
-        "step_07_visualization",
-        "step_08_report",
+        "step_07_nvt",
+        "step_08_npt",
+        "step_09_production",
+        "step_10_visualization",
+        "step_11_report",
     ]
     assert all(s.status == "planned" for s in idx.steps)
 
@@ -83,8 +86,11 @@ def test_invalidate_from_marks_step_and_downstream(tmp_path: Path) -> None:
         "step_04_topology",
         "step_05_solvation",
         "step_06_em",
-        "step_07_visualization",
-        "step_08_report",
+        "step_07_nvt",
+        "step_08_npt",
+        "step_09_production",
+        "step_10_visualization",
+        "step_11_report",
     ]
     assert changed == expected_invalidated
     for sid in expected_invalidated:

@@ -45,14 +45,32 @@
       "tool_components": ["tool_versions.gromacs", "ff_dir_recursive_hash", "em_mdp_template_hash"]
     },
     {
-      "step_id": "step_07_visualization",
+      "step_id": "step_07_nvt",
       "order": 7,
+      "depends_on_config_fields": ["nvt.nsteps", "nvt.dt_ps", "nvt.temperature_K", "nvt.random_seed", "nvt.nstxout_compressed", "ion_strategy.random_seed", "force_field", "water_model", "tool_versions.gromacs"],
+      "tool_components": ["tool_versions.gromacs", "ff_dir_recursive_hash", "nvt_mdp_template_hash"]
+    },
+    {
+      "step_id": "step_08_npt",
+      "order": 8,
+      "depends_on_config_fields": ["npt.nsteps", "npt.dt_ps", "npt.temperature_K", "npt.pressure_bar", "npt.nstxout_compressed", "force_field", "water_model", "tool_versions.gromacs"],
+      "tool_components": ["tool_versions.gromacs", "ff_dir_recursive_hash", "npt_mdp_template_hash"]
+    },
+    {
+      "step_id": "step_09_production",
+      "order": 9,
+      "depends_on_config_fields": ["production.enabled", "production.nsteps", "production.dt_ps", "production.temperature_K", "production.pressure_bar", "production.nstxout_compressed", "force_field", "water_model", "tool_versions.gromacs"],
+      "tool_components": ["tool_versions.gromacs", "ff_dir_recursive_hash", "production_mdp_template_hash"]
+    },
+    {
+      "step_id": "step_10_visualization",
+      "order": 10,
       "depends_on_config_fields": ["visualization.mode", "visualization.viewer", "visualization.checkpoints", "visualization.render"],
       "tool_components": ["viewer_executable_path", "viewer_version", "viz_script_template_hash"]
     },
     {
-      "step_id": "step_08_report",
-      "order": 8,
+      "step_id": "step_11_report",
+      "order": 11,
       "depends_on_config_fields": ["pipeline_mode", "interaction_mode"],
       "tool_components": ["report_code_hash"]
     }

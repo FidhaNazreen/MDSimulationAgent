@@ -67,7 +67,7 @@ def test_step_definitions_loads_and_orders_correctly() -> None:
     assert orders == sorted(orders), "steps must be listed in DAG order"
     ids = [s["step_id"] for s in defs["steps"]]
     assert ids[0] == "step_00_preflight_early"
-    assert ids[-1] == "step_08_report"
+    assert ids[-1] == "step_11_report"
 
 
 def test_every_step_depends_on_config_field_resolves_in_schema() -> None:

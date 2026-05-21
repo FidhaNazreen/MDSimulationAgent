@@ -55,6 +55,11 @@ def _write_config(tmp_path: Path) -> Path:
             "random_seed": 42,
         },
         "em": {"step_cap": 1000, "fmax_tol_kjmolnm": 1000.0},
+        # Disable dynamics for the v0 golden-path test — it asserts up to EM only.
+        "production": {"enabled": False},
+        # Even with production disabled, NVT+NPT still run. Use tiny step counts.
+        "nvt": {"nsteps": 1000, "dt_ps": 0.002, "temperature_K": 300.0, "random_seed": 42},
+        "npt": {"nsteps": 1000, "dt_ps": 0.002, "temperature_K": 300.0, "pressure_bar": 1.0},
         "tool_versions": {"gromacs": "2026.2"},
     }
     p = tmp_path / "run_config.json"
@@ -83,8 +88,11 @@ def test_1aki_golden_path_runs_to_ready(tmp_path: Path) -> None:
     assert statuses["step_04_topology"] == "succeeded", statuses
     assert statuses["step_05_solvation"] == "succeeded", statuses
     assert statuses["step_06_em"] == "succeeded", statuses
-    assert statuses["step_07_visualization"] == "skipped"
-    assert statuses["step_08_report"] == "succeeded", statuses
+    assert statuses["step_07_nvt"] == "succeeded", statuses
+    assert statuses["step_08_npt"] == "succeeded", statuses
+    assert statuses["step_09_production"] == "skipped", statuses  # production.enabled=false
+    assert statuses["step_10_visualization"] == "skipped"
+    assert statuses["step_11_report"] == "succeeded", statuses
 
     # Charge accounting passed.
     ca = json.loads((run_root / "step_05_solvation" / "charge_accounting.json").read_text())

@@ -38,7 +38,7 @@ def _make_cfg(**viz_overrides) -> RunConfig:
 def _make_ctx(tmp_path: Path, role: str, content: str, cfg: RunConfig) -> StepContext:
     art = tmp_path / "structure.pdb"
     art.write_text(content)
-    step_dir = tmp_path / "step_07_visualization"
+    step_dir = tmp_path / "step_10_visualization"
     step_dir.mkdir()
     inputs = [{
         "artifact_uri": f"local://{art}",
@@ -46,7 +46,7 @@ def _make_ctx(tmp_path: Path, role: str, content: str, cfg: RunConfig) -> StepCo
         "role": role,
     }]
     return StepContext(
-        step_id="step_07_visualization",
+        step_id="step_10_visualization",
         run_root=tmp_path,
         step_dir=step_dir,
         run_config=cfg,
@@ -78,7 +78,7 @@ def test_writes_tcl_script_when_no_viewer(tmp_path: Path):
     ctx = _make_ctx(tmp_path, "working_pdb", _minimal_pdb(), cfg)
     out = visualization.run(ctx)
     assert out.ok
-    tcl = tmp_path / "step_07_visualization" / "prep" / "visualize.vmd"
+    tcl = tmp_path / "step_10_visualization" / "prep" / "visualize.vmd"
     assert tcl.is_file()
     assert "mol new" in tcl.read_text()
 
@@ -87,7 +87,7 @@ def test_skipped_renderer_recorded_in_probe_json(tmp_path: Path):
     cfg = _make_cfg(mode="default", viewer="vmd", checkpoints=["prep"])
     ctx = _make_ctx(tmp_path, "working_pdb", _minimal_pdb(), cfg)
     out = visualization.run(ctx)
-    probe_path = tmp_path / "step_07_visualization" / "render_probe.json"
+    probe_path = tmp_path / "step_10_visualization" / "render_probe.json"
     assert probe_path.is_file()
     probe = json.loads(probe_path.read_text())
     # Rendered list always populated for every requested checkpoint.
@@ -106,7 +106,7 @@ def test_checkpoint_missing_artifact_records_a_warning(tmp_path: Path):
     out = visualization.run(ctx)
     assert out.ok
     # Step succeeds, but `rendered` shows the missing-artifact note.
-    probe = json.loads((tmp_path / "step_07_visualization" / "render_probe.json").read_text())
+    probe = json.loads((tmp_path / "step_10_visualization" / "render_probe.json").read_text())
     em_entry = next(r for r in probe["rendered"] if r["checkpoint"] == "em")
     assert em_entry["status"] == "checkpoint_artifact_missing"
 
@@ -117,7 +117,7 @@ def test_all_checkpoints_keyword_expands(tmp_path: Path):
     ctx = _make_ctx(tmp_path, "working_pdb", _minimal_pdb(), cfg)
     out = visualization.run(ctx)
     assert out.ok
-    probe = json.loads((tmp_path / "step_07_visualization" / "render_probe.json").read_text())
+    probe = json.loads((tmp_path / "step_10_visualization" / "render_probe.json").read_text())
     checkpoints_seen = {r["checkpoint"] for r in probe["rendered"]}
     assert checkpoints_seen == {"prep", "topology", "solvated", "em"}
 

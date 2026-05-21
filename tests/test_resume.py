@@ -45,6 +45,10 @@ _DEFAULT_CFG = {
     "box": {"geometry": "dodecahedron", "padding_nm": 1.0, "cutoff_nm": 1.0},
     "ion_strategy": {"mode": "neutralize_only", "cation": "NA", "anion": "CL", "random_seed": 42},
     "em": {"step_cap": 1000, "fmax_tol_kjmolnm": 1000.0},
+    # Keep dynamics short for tests; production disabled.
+    "nvt": {"nsteps": 1000, "dt_ps": 0.002, "temperature_K": 300.0, "random_seed": 42},
+    "npt": {"nsteps": 1000, "dt_ps": 0.002, "temperature_K": 300.0, "pressure_bar": 1.0},
+    "production": {"enabled": False},
     "tool_versions": {"gromacs": "2026.2"},
 }
 

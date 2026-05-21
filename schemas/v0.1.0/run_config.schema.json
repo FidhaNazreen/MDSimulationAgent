@@ -135,6 +135,46 @@
       }
     },
 
+    "nvt": {
+      "type": "object",
+      "description": "NVT equilibration parameters. v0 defaults: 100 ps at 300 K with position restraints.",
+      "additionalProperties": false,
+      "properties": {
+        "nsteps": { "type": "integer", "minimum": 0, "default": 50000 },
+        "dt_ps": { "type": "number", "exclusiveMinimum": 0.0, "default": 0.002 },
+        "temperature_K": { "type": "number", "exclusiveMinimum": 0.0, "default": 300.0 },
+        "random_seed": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "nstxout_compressed": { "type": "integer", "minimum": 0, "default": 5000 }
+      }
+    },
+
+    "npt": {
+      "type": "object",
+      "description": "NPT equilibration parameters. v0 defaults: 100 ps at 300 K / 1 bar.",
+      "additionalProperties": false,
+      "properties": {
+        "nsteps": { "type": "integer", "minimum": 0, "default": 50000 },
+        "dt_ps": { "type": "number", "exclusiveMinimum": 0.0, "default": 0.002 },
+        "temperature_K": { "type": "number", "exclusiveMinimum": 0.0, "default": 300.0 },
+        "pressure_bar": { "type": "number", "default": 1.0 },
+        "nstxout_compressed": { "type": "integer", "minimum": 0, "default": 5000 }
+      }
+    },
+
+    "production": {
+      "type": "object",
+      "description": "Production MD parameters. v0 defaults: 1 ns at 300 K / 1 bar.",
+      "additionalProperties": false,
+      "properties": {
+        "nsteps": { "type": "integer", "minimum": 0, "default": 500000 },
+        "dt_ps": { "type": "number", "exclusiveMinimum": 0.0, "default": 0.002 },
+        "temperature_K": { "type": "number", "exclusiveMinimum": 0.0, "default": 300.0 },
+        "pressure_bar": { "type": "number", "default": 1.0 },
+        "nstxout_compressed": { "type": "integer", "minimum": 0, "default": 5000 },
+        "enabled": { "type": "boolean", "default": true, "description": "Set to false to stop the pipeline after NPT — useful for tests / quick prep runs." }
+      }
+    },
+
     "visualization": {
       "type": "object",
       "additionalProperties": false,

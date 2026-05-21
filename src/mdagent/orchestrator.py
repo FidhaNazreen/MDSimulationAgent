@@ -45,11 +45,14 @@ _STEP_INPUT_ROLES: dict[str, tuple[str, ...]] = {
     "step_04_topology": ("working_pdb",),
     "step_05_solvation": ("system_apo_gro", "system_apo_top", "posre"),
     "step_06_em": ("system_ions_gro", "system_ions_top"),
+    "step_07_nvt": ("em_gro", "system_ions_top"),
+    "step_08_npt": ("nvt_gro", "nvt_cpt", "system_ions_top"),
+    "step_09_production": ("npt_gro", "npt_cpt", "system_ions_top"),
     # Visualization can render any prior checkpoint by role; orchestrator
-    # feeds in every artifact emitted so far via `inputs_extra` (handled
-    # specially inside `run_workflow`).
-    "step_07_visualization": (),
-    "step_08_report": (),
+    # feeds in every artifact emitted so far (handled specially inside
+    # `run_workflow`).
+    "step_10_visualization": (),
+    "step_11_report": (),
 }
 
 # Which step module to invoke for each step_id. step_00 (Preflight) and
@@ -62,8 +65,11 @@ _STEP_MODULE: dict[str, str] = {
     "step_04_topology": "mdagent.steps.topology",
     "step_05_solvation": "mdagent.steps.solvation",
     "step_06_em": "mdagent.steps.em",
-    "step_07_visualization": "mdagent.steps.visualization",
-    "step_08_report": "mdagent.steps.report",
+    "step_07_nvt": "mdagent.steps.nvt",
+    "step_08_npt": "mdagent.steps.npt",
+    "step_09_production": "mdagent.steps.production",
+    "step_10_visualization": "mdagent.steps.visualization",
+    "step_11_report": "mdagent.steps.report",
 }
 
 
@@ -98,7 +104,41 @@ def _resolved_tool_components(step_id: str, run_config: RunConfig) -> dict[str, 
             ff_name=ff,
             em_mdp_template_hash=sha256_text(EM_MDP_TEMPLATE),
         )
+    if step_id == "step_07_nvt":
+        from .hashing import sha256_text
+        from .mdp import NVT_MDP_TEMPLATE
+        return {
+            "tool_versions.gromacs": sha256_text(_provenance_gmx_version()),
+            "ff_dir_recursive_hash": _provenance_ff_dir(ff),
+            "nvt_mdp_template_hash": sha256_text(NVT_MDP_TEMPLATE),
+        }
+    if step_id == "step_08_npt":
+        from .hashing import sha256_text
+        from .mdp import NPT_MDP_TEMPLATE
+        return {
+            "tool_versions.gromacs": sha256_text(_provenance_gmx_version()),
+            "ff_dir_recursive_hash": _provenance_ff_dir(ff),
+            "npt_mdp_template_hash": sha256_text(NPT_MDP_TEMPLATE),
+        }
+    if step_id == "step_09_production":
+        from .hashing import sha256_text
+        from .mdp import PRODUCTION_MDP_TEMPLATE
+        return {
+            "tool_versions.gromacs": sha256_text(_provenance_gmx_version()),
+            "ff_dir_recursive_hash": _provenance_ff_dir(ff),
+            "production_mdp_template_hash": sha256_text(PRODUCTION_MDP_TEMPLATE),
+        }
     return stub_components(declared)
+
+
+def _provenance_gmx_version() -> str:
+    from .provenance import gmx_version_stdout
+    return gmx_version_stdout()
+
+
+def _provenance_ff_dir(ff_name: str) -> str:
+    from .provenance import ff_dir_hash
+    return ff_dir_hash(ff_name)
 
 
 def _invalidate_outdated_steps(
@@ -148,7 +188,7 @@ def _invalidate_outdated_steps(
                 if role:
                     artifacts_by_role[role] = dict(art)
             continue
-        if step_id in ("step_07_visualization", "step_08_report"):
+        if step_id in ("step_10_visualization", "step_11_report"):
             for art in (s.artifacts or []):
                 role = art.get("role")
                 if role:
@@ -249,7 +289,11 @@ def run_workflow(
     code_files = (
         [Path(m.__file__) for m in (dialogue, executor, fingerprint, hashing, mdp, provenance, rc_mod, ri_mod, schemas, step_report)]
         + [Path(m.__file__) for m in (steps,)]
-        + [Path(m.__file__) for m in (steps.ingest, steps.classifier, steps.prep, steps.topology, steps.solvation, steps.em, steps.report)]
+        + [Path(m.__file__) for m in (
+            steps.ingest, steps.classifier, steps.prep, steps.topology,
+            steps.solvation, steps.em, steps.nvt, steps.npt, steps.production,
+            steps.visualization, steps.report,
+        )]
     )
     code_hash = sha256_source_files([str(p) for p in code_files if p is not None])
 
@@ -296,8 +340,13 @@ def run_workflow(
                 idx_step.status = "skipped"
                 index.write(index_path)
                 continue
-            if step_id == "step_07_visualization":
+            if step_id == "step_10_visualization":
                 if (cfg.get_field("visualization.mode") or "disabled") == "disabled":
+                    idx_step.status = "skipped"
+                    index.write(index_path)
+                    continue
+            if step_id == "step_09_production":
+                if cfg.get_field("production.enabled") is False:
                     idx_step.status = "skipped"
                     index.write(index_path)
                     continue
@@ -316,7 +365,7 @@ def run_workflow(
                     inputs.append(dict(ref))
             # Visualization wants everything that's been produced so far so
             # it can render any requested checkpoint.
-            if step_id == "step_07_visualization":
+            if step_id == "step_10_visualization":
                 checkpoint_roles = {"working_pdb", "system_apo_gro", "system_ions_gro", "em_gro"}
                 for role in checkpoint_roles:
                     ref = artifacts_by_role.get(role)
