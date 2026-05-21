@@ -48,11 +48,12 @@ _STEP_INPUT_ROLES: dict[str, tuple[str, ...]] = {
     "step_07_nvt": ("em_gro", "system_ions_top"),
     "step_08_npt": ("nvt_gro", "nvt_cpt", "system_ions_top"),
     "step_09_production": ("npt_gro", "npt_cpt", "system_ions_top"),
+    "step_10_analysis": ("production_xtc", "production_tpr"),
     # Visualization can render any prior checkpoint by role; orchestrator
     # feeds in every artifact emitted so far (handled specially inside
     # `run_workflow`).
-    "step_10_visualization": (),
-    "step_11_report": (),
+    "step_11_visualization": (),
+    "step_12_report": (),
 }
 
 # Which step module to invoke for each step_id. step_00 (Preflight) and
@@ -68,8 +69,9 @@ _STEP_MODULE: dict[str, str] = {
     "step_07_nvt": "mdagent.steps.nvt",
     "step_08_npt": "mdagent.steps.npt",
     "step_09_production": "mdagent.steps.production",
-    "step_10_visualization": "mdagent.steps.visualization",
-    "step_11_report": "mdagent.steps.report",
+    "step_10_analysis": "mdagent.steps.analysis",
+    "step_11_visualization": "mdagent.steps.visualization",
+    "step_12_report": "mdagent.steps.report",
 }
 
 
@@ -188,7 +190,7 @@ def _invalidate_outdated_steps(
                 if role:
                     artifacts_by_role[role] = dict(art)
             continue
-        if step_id in ("step_10_visualization", "step_11_report"):
+        if step_id in ("step_11_visualization", "step_12_report"):
             for art in (s.artifacts or []):
                 role = art.get("role")
                 if role:
@@ -292,7 +294,7 @@ def run_workflow(
         + [Path(m.__file__) for m in (
             steps.ingest, steps.classifier, steps.prep, steps.topology,
             steps.solvation, steps.em, steps.nvt, steps.npt, steps.production,
-            steps.visualization, steps.report,
+            steps.analysis, steps.visualization, steps.report,
         )]
     )
     code_hash = sha256_source_files([str(p) for p in code_files if p is not None])
@@ -340,13 +342,19 @@ def run_workflow(
                 idx_step.status = "skipped"
                 index.write(index_path)
                 continue
-            if step_id == "step_10_visualization":
+            if step_id == "step_11_visualization":
                 if (cfg.get_field("visualization.mode") or "disabled") == "disabled":
                     idx_step.status = "skipped"
                     index.write(index_path)
                     continue
             if step_id == "step_09_production":
                 if cfg.get_field("production.enabled") is False:
+                    idx_step.status = "skipped"
+                    index.write(index_path)
+                    continue
+            if step_id == "step_10_analysis":
+                # Skip analysis when production didn't run, or when explicitly disabled.
+                if cfg.get_field("production.enabled") is False or cfg.get_field("analysis.enabled") is False:
                     idx_step.status = "skipped"
                     index.write(index_path)
                     continue
@@ -365,7 +373,7 @@ def run_workflow(
                     inputs.append(dict(ref))
             # Visualization wants everything that's been produced so far so
             # it can render any requested checkpoint.
-            if step_id == "step_10_visualization":
+            if step_id == "step_11_visualization":
                 checkpoint_roles = {"working_pdb", "system_apo_gro", "system_ions_gro", "em_gro"}
                 for role in checkpoint_roles:
                     ref = artifacts_by_role.get(role)

@@ -16,6 +16,7 @@ from . import (
     nvt,
     npt,
     production,
+    analysis,
     visualization,
     report,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "nvt",
     "npt",
     "production",
+    "analysis",
     "visualization",
     "report",
 ]

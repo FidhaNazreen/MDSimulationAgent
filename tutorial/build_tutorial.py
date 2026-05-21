@@ -107,8 +107,9 @@ through these phases in order:
 | 7 | `NVT` | Position-restrained NVT equilibration (default 100 ps at 300 K). Heats the system and lets the solvent relax around the restrained protein. |
 | 8 | `NPT` | Position-restrained NPT equilibration (default 100 ps at 300 K / 1 bar). Equilibrates the box volume / density. Velocities continue from NVT. |
 | 9 | `Production` | Free MD (no restraints). Default 1 ns; trajectory in `production.xtc`. Disable with `production.enabled: false` for prep-only runs. |
-| 10 | `Visualization` | (opt-in) renders VMD/PyMOL snapshots at requested checkpoints; writes Tcl/PML scripts unconditionally so the user can re-render later. |
-| 11 | `Report` | Regenerates `REPORT.md` from on-disk truth; the first line is `readiness: ready | ready_with_warnings | blocked | not_validated`. |
+| 10 | `Analysis` | Drives `gmx rms`, `gmx gyrate`, `gmx rmsf` against the production trajectory. Emits `analysis.json` with time-series + summary stats plus the raw `.xvg` files for re-plotting. Skipped when production is disabled. |
+| 11 | `Visualization` | (opt-in) renders VMD/PyMOL snapshots at requested checkpoints; writes Tcl/PML scripts unconditionally so the user can re-render later. |
+| 12 | `Report` | Regenerates `REPORT.md` from on-disk truth; the first line is `readiness: ready | ready_with_warnings | blocked | not_validated`. |
 
 Each step emits an immutable `step_report.json` + `step_fingerprint.json`. The
 fingerprint is a SHA-256 over `(inputs_hash, parameters_hash, profile_hash,
@@ -237,11 +238,22 @@ runs/<run_id>/
 │   └── step_report.json
 ├── step_06_em/
 │   ├── em.mdp
-│   ├── em.gro                    # the minimized system!
+│   ├── em.gro                    # the minimized system
 │   ├── em.log
 │   ├── em_convergence.json       # verdict, fmax curve
 │   └── step_report.json
-├── step_07_visualization/        # (optional)
+├── step_07_nvt/                  # nvt.{mdp,gro,cpt,xtc,log,edr}
+├── step_08_npt/                  # npt.{mdp,gro,cpt,xtc,log,edr}
+├── step_09_production/
+│   ├── production.mdp
+│   ├── production.xtc            # the trajectory (xtc-compressed)
+│   ├── production.gro            # last frame
+│   ├── production.cpt            # checkpoint (for continuation runs)
+│   ├── production.tpr
+│   ├── production.log
+│   └── production.edr            # energy file (gmx energy)
+├── step_10_analysis/             # analysis.json + rmsd.xvg + gyrate.xvg + rmsf.xvg
+├── step_11_visualization/        # (optional) Tcl/PML scripts + PNGs
 └── REPORT.md
 ```
 
@@ -367,13 +379,59 @@ about viewer + checkpoints + render format. The `md:visualize` skill manifest
 (`skills/md-visualize/SKILL.md`) is what tells Claude when and how to ask.
 """),
     md("""
+## Reading the analysis output
+
+When `production.enabled: true` and `analysis.enabled: true` (default),
+the analysis step writes `step_10_analysis/analysis.json` plus the raw
+`rmsd.xvg`, `gyrate.xvg`, `rmsf.xvg` files. The JSON is the easy thing
+to consume from Python:
+"""),
+    code("""
+# Load the analysis JSON from a completed run.
+import json
+from pathlib import Path
+
+run_root = Path("tutorial/runs/tutorial-1aki")
+analysis_path = run_root / "step_10_analysis" / "analysis.json"
+if analysis_path.is_file():
+    analysis = json.loads(analysis_path.read_text())
+    print("RMSD summary:", analysis["rmsd"]["summary"])
+    print("Rg summary  :", analysis["radius_of_gyration"]["summary"])
+    print("RMSF summary:", analysis["rmsf"]["summary"])
+    # Time series are right there — e.g.:
+    print("\\nFirst few RMSD frames:")
+    for entry in analysis["rmsd"]["time_series"][:5]:
+        print(f"  t={entry['t']:.4f} ns  rmsd={entry['rmsd']:.4f} nm")
+else:
+    print("No analysis output — production was probably disabled in this run.")
+"""),
+    md("""
+For lysozyme at 300 K you'd expect:
+
+- **RMSD** vs. starting backbone: roughly 0.1–0.2 nm after the system equilibrates (longer runs trend higher).
+- **Rg** (radius of gyration): ~1.4 nm for native-state lysozyme; values much above ~1.6 nm hint at partial unfolding.
+- **RMSF**: per-residue fluctuation. Loop regions show 0.1–0.3 nm; structured core stays below 0.1 nm.
+
+For plotting, point matplotlib at the JSON's `time_series` or the `.xvg`
+files directly:
+
+```python
+import matplotlib.pyplot as plt
+ts = analysis["rmsd"]["time_series"]
+plt.plot([p["t"] for p in ts], [p["rmsd"] for p in ts])
+plt.xlabel("time (ns)"); plt.ylabel("RMSD (nm)")
+plt.show()
+```
+"""),
+    md("""
 ## How to consume the results
 
 After a successful run, the artifacts you'll typically feed downstream are:
 
 | Use case | Artifact path |
 |---|---|
-| Production trajectory (analysis in MDAnalysis / VMD) | `step_09_production/production.xtc` + `.tpr` |
+| Built-in analysis (RMSD/Rg/RMSF) | `step_10_analysis/analysis.json` + `*.xvg` |
+| Production trajectory (further analysis in MDAnalysis / VMD) | `step_09_production/production.xtc` + `.tpr` |
 | Equilibrated starting frame | `step_08_npt/npt.gro` + `system_ions.top` |
 | Re-run dynamics with different settings (resume) | use the same `--run-id` with an edited config |
 | Hand to PyMOL / NGLview for static view | `step_06_em/em.gro` |
@@ -409,24 +467,26 @@ When you see a failure, the run's REPORT.md will say
 structured failure reason. Surfaced clearly in the inspect output.
 """),
     md("""
-## What's available right now (v0 + slice 5)
+## What's available right now (slices 1–6)
 
 - Soluble protein-only systems (no ligands / nucleic acids / membranes).
 - OPLS-AA / AMBER99SB-ILDN / CHARMM36 force fields (need matching water model).
 - Dodecahedron / cubic / octahedron boxes.
 - Neutralize-only or physiological-salt ion strategy.
 - Short steepest-descent EM as validation gate.
-- **NVT + NPT equilibration** with position restraints on the protein.
-- **Free production MD** (configurable length; disable with `production.enabled: false`).
+- NVT + NPT equilibration with position restraints on the protein.
+- Free production MD (configurable length; disable with `production.enabled: false`).
+- **Built-in analysis: RMSD / Rg / RMSF time series + summary stats** (slice 6).
 - mmCIF canonical ingest with coordinate_id_map (general mode).
 - Resume + fingerprint dependency invalidation across the full pipeline.
 - VMD / PyMOL / NGLview visualization with viewer-detect + scripts-always.
 
 ## Coming next
 
-- Built-in analysis (RMSD, Rg, RMSF) against the production trajectory.
 - Remote executor (HPC / cloud GPU).
 - General-mode protonation (`-inter`) and disulfides (`-ss`) driven by the recognizer.
+- More analysis (H-bonds, secondary-structure, residue-residue contacts).
+- Energy file parsing (`gmx energy`) for NVT/NPT thermodynamic plots.
 
 This notebook will be regenerated as each lands.
 """),
@@ -439,7 +499,7 @@ def build_notebook() -> nbf.notebooknode.NotebookNode:
     nb["metadata"] = {
         "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
         "language_info": {"name": "python", "version": "3.11"},
-        "tutorial": {"slice": "v0 + slice 5 (dynamics)"},
+        "tutorial": {"slice": "v0 + slice 5 (dynamics) + slice 6 (analysis)"},
     }
     return nb
 

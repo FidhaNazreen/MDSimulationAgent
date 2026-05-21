@@ -91,8 +91,9 @@ def test_1aki_golden_path_runs_to_ready(tmp_path: Path) -> None:
     assert statuses["step_07_nvt"] == "succeeded", statuses
     assert statuses["step_08_npt"] == "succeeded", statuses
     assert statuses["step_09_production"] == "skipped", statuses  # production.enabled=false
-    assert statuses["step_10_visualization"] == "skipped"
-    assert statuses["step_11_report"] == "succeeded", statuses
+    assert statuses["step_10_analysis"] == "skipped", statuses    # no production trajectory to analyze
+    assert statuses["step_11_visualization"] == "skipped"
+    assert statuses["step_12_report"] == "succeeded", statuses
 
     # Charge accounting passed.
     ca = json.loads((run_root / "step_05_solvation" / "charge_accounting.json").read_text())

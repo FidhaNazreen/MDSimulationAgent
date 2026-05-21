@@ -63,14 +63,20 @@
       "tool_components": ["tool_versions.gromacs", "ff_dir_recursive_hash", "production_mdp_template_hash"]
     },
     {
-      "step_id": "step_10_visualization",
+      "step_id": "step_10_analysis",
       "order": 10,
+      "depends_on_config_fields": ["production.enabled", "analysis.enabled", "tool_versions.gromacs"],
+      "tool_components": ["tool_versions.gromacs", "analysis_code_hash"]
+    },
+    {
+      "step_id": "step_11_visualization",
+      "order": 11,
       "depends_on_config_fields": ["visualization.mode", "visualization.viewer", "visualization.checkpoints", "visualization.render"],
       "tool_components": ["viewer_executable_path", "viewer_version", "viz_script_template_hash"]
     },
     {
-      "step_id": "step_11_report",
-      "order": 11,
+      "step_id": "step_12_report",
+      "order": 12,
       "depends_on_config_fields": ["pipeline_mode", "interaction_mode"],
       "tool_components": ["report_code_hash"]
     }

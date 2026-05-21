@@ -175,6 +175,15 @@
       }
     },
 
+    "analysis": {
+      "type": "object",
+      "description": "Analysis step (RMSD / Rg / RMSF against the production trajectory).",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": true, "description": "Set to false to skip the analysis step." }
+      }
+    },
+
     "visualization": {
       "type": "object",
       "additionalProperties": false,
