@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdagent/schemas/v0.1.0/run_config.schema.json",
+  "title": "RunConfig",
+  "description": "Canonical, exhaustive configuration for one mdagent run. Every configurable parameter the v0 architecture references appears as a named field here. Per-step schemas declare which fields they depend on via 'depends_on_config_fields'.",
+  "type": "object",
+  "required": ["schema_version", "pipeline_mode", "interaction_mode"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+
+    "pipeline_mode": {
+      "description": "Contract being satisfied. tutorial_reproduction matches the canonical GROMACS lysozyme tutorial output exactly; general_md_prep judges by chemical/topological correctness.",
+      "enum": ["tutorial_reproduction", "general_md_prep"]
+    },
+    "interaction_mode": {
+      "description": "Prompting policy.",
+      "enum": ["interactive", "noninteractive_defaults", "strict_config_required"]
+    },
+
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pdb_id": { "type": "string", "pattern": "^[0-9A-Za-z]{4}$" },
+        "structure_path": { "type": "string" },
+        "model_number": { "type": "integer", "minimum": 1 },
+        "biological_assembly": {
+          "enum": ["asymmetric_unit", "first_biological_assembly", "largest_biological_assembly"]
+        },
+        "chain_selection": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 4 }
+        }
+      },
+      "oneOf": [
+        { "required": ["pdb_id"] },
+        { "required": ["structure_path"] }
+      ]
+    },
+
+    "force_field": {
+      "description": "GROMACS force field directory name (e.g. 'oplsaa', 'amber99sb-ildn', 'charmm36-jul2022').",
+      "type": "string"
+    },
+    "water_model": {
+      "description": "Water model name passed to pdb2gmx -water.",
+      "enum": ["spc", "spce", "tip3p", "tip4p", "tip4pew", "tip5p"]
+    },
+
+    "ph": {
+      "description": "Target pH for PROPKA-driven protonation analysis. Has effect only when protonation_policy='propka'.",
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 14.0,
+      "default": 7.0
+    },
+    "protonation_policy": {
+      "enum": ["propka", "ff_default", "preserve_crystal"],
+      "default": "propka"
+    },
+
+    "altloc_policy": {
+      "enum": ["highest_occupancy", "force_consistent_set", "force_single_letter"],
+      "default": "highest_occupancy"
+    },
+    "mse_policy": {
+      "enum": ["convert", "reject", "preserve_if_supported"]
+    },
+    "water_retention_policy": {
+      "enum": ["strip_all", "preserve_high_confidence", "preserve_all"]
+    },
+    "environment_override": {
+      "enum": ["soluble", "membrane_likely", "unknown"]
+    },
+    "allow_terminal_truncation": { "type": "boolean", "default": false },
+
+    "disulfide_policy": {
+      "enum": ["auto_detect", "configured", "none"],
+      "default": "auto_detect"
+    },
+    "termini_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "n_term_default": { "enum": ["charged", "neutral", "ACE", "NH2"] },
+        "c_term_default": { "enum": ["charged", "neutral", "NME", "COOH"] }
+      }
+    },
+    "chain_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "chainsep": { "enum": ["id_or_ter", "id", "ter", "interactive"], "default": "id_or_ter" },
+        "merge_groups": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 4 } }
+        }
+      }
+    },
+
+    "box": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "geometry": { "enum": ["dodecahedron", "cubic", "octahedron"] },
+        "padding_nm": { "type": "number", "exclusiveMinimum": 0.0 },
+        "cutoff_nm": { "type": "number", "exclusiveMinimum": 0.0 }
+      }
+    },
+
+    "ion_strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["neutralize_only", "physiological_salt", "custom"] },
+        "salt_M": { "type": "number", "minimum": 0.0 },
+        "cation": { "type": "string" },
+        "anion": { "type": "string" },
+        "random_seed": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+      }
+    },
+
+    "em": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "step_cap": { "type": "integer", "minimum": 1, "default": 1000 },
+        "fmax_tol_kjmolnm": { "type": "number", "exclusiveMinimum": 0.0, "default": 1000.0 }
+      }
+    },
+
+    "visualization": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["disabled", "default", "requested"], "default": "disabled" },
+        "viewer": { "enum": ["vmd", "pymol", "nglview", "auto"] },
+        "checkpoints": {
+          "type": "array",
+          "items": { "enum": ["prep", "topology", "solvated", "em", "all"] }
+        },
+        "render": { "enum": ["png", "state_only", "both"] }
+      }
+    },
+
+    "profile": {
+      "description": "Reference to a named lab profile in profiles/. Profile content hash participates in StepFingerprint.profile_hash.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_id", "semver"],
+      "properties": {
+        "profile_id": { "type": "string" },
+        "semver": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" }
+      }
+    },
+    "target_profile": {
+      "description": "Used by md:prep-structure to inform downstream-FF-aware decisions during structure prep alone.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "force_field": { "type": "string" },
+        "water_model": { "type": "string" }
+      }
+    },
+
+    "tool_versions": {
+      "description": "Pinned tool versions for reproducibility. Participates in StepFingerprint.tool_hash.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gromacs": { "type": "string", "description": "e.g. '2024.3'" },
+        "propka": { "type": "string" },
+        "tutorial_revision": { "type": "string", "description": "git commit hash or URL revision of the canonical tutorial reference" }
+      }
+    }
+  }
+}

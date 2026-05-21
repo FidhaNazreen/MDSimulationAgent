@@ -1,0 +1,60 @@
+{
+  "schema_version": "0.1.0",
+  "description": "Canonical step definitions: DAG ordering, per-step config-field sensitivity declarations, and per-step tool components. Each step's parameters_hash is computed from a normalized projection of run_config.json restricted to depends_on_config_fields. tool_components enumerate which external/internal tool versions feed tool_hash.",
+  "steps": [
+    {
+      "step_id": "step_00_preflight_early",
+      "order": 0,
+      "depends_on_config_fields": ["pipeline_mode", "interaction_mode", "tool_versions.gromacs", "tool_versions.propka", "visualization.mode", "visualization.viewer"],
+      "tool_components": ["preflight_code_hash"]
+    },
+    {
+      "step_id": "step_01_structure_ingest",
+      "order": 1,
+      "depends_on_config_fields": ["input.pdb_id", "input.structure_path", "input.model_number", "input.biological_assembly", "input.chain_selection"],
+      "tool_components": ["mmcif_parser_code_hash", "fetcher_code_hash"]
+    },
+    {
+      "step_id": "step_02_classifier",
+      "order": 2,
+      "depends_on_config_fields": ["pipeline_mode", "environment_override"],
+      "tool_components": ["classifier_code_hash"]
+    },
+    {
+      "step_id": "step_03_structure_prep",
+      "order": 3,
+      "depends_on_config_fields": ["pipeline_mode", "ph", "protonation_policy", "altloc_policy", "mse_policy", "water_retention_policy", "allow_terminal_truncation", "target_profile.force_field", "target_profile.water_model"],
+      "tool_components": ["structure_analyzer_code_hash", "altloc_resolver_code_hash", "water_classifier_code_hash", "structure_transform_code_hash", "tool_versions.propka"]
+    },
+    {
+      "step_id": "step_04_topology",
+      "order": 4,
+      "depends_on_config_fields": ["force_field", "water_model", "ph", "protonation_policy", "disulfide_policy", "termini_policy.n_term_default", "termini_policy.c_term_default", "chain_policy.chainsep", "chain_policy.merge_groups", "tool_versions.gromacs"],
+      "tool_components": ["tool_versions.gromacs", "ff_dir_recursive_hash", "transcript_catalog_hash", "dialogue_runner_code_hash"]
+    },
+    {
+      "step_id": "step_05_solvation",
+      "order": 5,
+      "depends_on_config_fields": ["box.geometry", "box.padding_nm", "box.cutoff_nm", "ion_strategy.mode", "ion_strategy.salt_M", "ion_strategy.cation", "ion_strategy.anion", "ion_strategy.random_seed", "water_model", "force_field", "water_retention_policy", "tool_versions.gromacs"],
+      "tool_components": ["tool_versions.gromacs", "ff_dir_recursive_hash", "water_model_include_hash", "ion_include_hash"]
+    },
+    {
+      "step_id": "step_06_em",
+      "order": 6,
+      "depends_on_config_fields": ["em.step_cap", "em.fmax_tol_kjmolnm", "force_field", "water_model", "tool_versions.gromacs"],
+      "tool_components": ["tool_versions.gromacs", "ff_dir_recursive_hash", "em_mdp_template_hash"]
+    },
+    {
+      "step_id": "step_07_visualization",
+      "order": 7,
+      "depends_on_config_fields": ["visualization.mode", "visualization.viewer", "visualization.checkpoints", "visualization.render"],
+      "tool_components": ["viewer_executable_path", "viewer_version", "viz_script_template_hash"]
+    },
+    {
+      "step_id": "step_08_report",
+      "order": 8,
+      "depends_on_config_fields": ["pipeline_mode", "interaction_mode"],
+      "tool_components": ["report_code_hash"]
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdagent/schemas/v0.1.0/step_fingerprint.schema.json",
+  "title": "StepFingerprint",
+  "description": "Composite hash record for one step. Used by the resume invalidation walker: on resume, recompute each succeeded step's composite; if it differs from the recorded composite, mark the step and its DAG descendants 'invalidated'.",
+  "type": "object",
+  "required": [
+    "schema_version", "step_id", "inputs_hash", "parameters_hash",
+    "profile_hash", "mode_hash", "tool_hash", "schema_hash", "code_hash",
+    "composite", "depends_on_config_fields"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "step_id": { "type": "string", "description": "e.g. step_04_topology" },
+    "inputs_hash": { "$ref": "#/$defs/sha256_hex" },
+    "parameters_hash": { "$ref": "#/$defs/sha256_hex" },
+    "profile_hash": { "$ref": "#/$defs/sha256_hex" },
+    "mode_hash": { "$ref": "#/$defs/sha256_hex" },
+    "tool_hash": { "$ref": "#/$defs/sha256_hex" },
+    "schema_hash": { "$ref": "#/$defs/sha256_hex" },
+    "code_hash": { "$ref": "#/$defs/sha256_hex" },
+    "composite": { "$ref": "#/$defs/sha256_hex" },
+    "depends_on_config_fields": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Dotted paths into run_config.json (e.g. 'box.padding_nm', 'ion_strategy.salt_M') that this step is sensitive to. Code-validated against run_config.schema.json: every dotted path must resolve to a real field."
+    },
+    "tool_components": {
+      "type": "object",
+      "description": "Per-step declaration of which tool components feed tool_hash (e.g. gmx_version, ff_dir_hash, dialogue_runner_code_hash). Audit only; tool_hash is the authoritative composite.",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "$defs": {
+    "sha256_hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

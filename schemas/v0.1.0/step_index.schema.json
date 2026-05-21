@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdagent/schemas/v0.1.0/step_index.schema.json",
+  "title": "RunIndex",
+  "description": "The single index file at the run root that lists step ordering, status, artifact roles, and content hashes. Only mutable file at the run root. Written exclusively via temp+atomic rename. The orchestrator owns it.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "created_at", "steps"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "run_id": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+
+    "run_config_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Hash of the run_config.json the run started with."
+    },
+    "lock_holder_pid": {
+      "type": "integer",
+      "description": "PID of the orchestrator currently holding the run lock. Used for crash-recovery to detect stale 'running' steps."
+    },
+
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step_id", "order", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "step_id": { "type": "string" },
+          "order": { "type": "integer", "minimum": 0 },
+          "status": {
+            "enum": ["planned", "running", "succeeded", "failed", "skipped", "invalidated"]
+          },
+          "current_attempt": { "type": "integer", "minimum": 1 },
+          "step_report_uri": { "type": "string" },
+          "step_fingerprint_uri": { "type": "string" },
+          "fingerprint_composite": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Cached composite for fast invalidation check on resume."
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["role", "uri", "content_hash"],
+              "additionalProperties": false,
+              "properties": {
+                "role": { "type": "string", "description": "Logical role within the run, e.g. 'final_topology', 'em_gro'." },
+                "uri": { "type": "string" },
+                "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

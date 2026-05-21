@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdagent/schemas/v0.1.0/step_report.schema.json",
+  "title": "StepReport",
+  "description": "Per-step immutable report. Written once per attempt via temp+atomic rename. Records the inputs the step consumed (with content hashes for invalidation), outputs produced, executor calls made, and warnings raised.",
+  "type": "object",
+  "required": [
+    "schema_version", "step_id", "attempt", "status", "started_at",
+    "inputs", "outputs", "executor_calls"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "step_id": { "type": "string" },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "status": {
+      "enum": ["planned", "running", "succeeded", "failed", "skipped", "invalidated"]
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "ended_at": { "type": "string", "format": "date-time" },
+
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["artifact_uri", "content_hash"],
+        "additionalProperties": false,
+        "properties": {
+          "artifact_uri": { "type": "string" },
+          "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "role": { "type": "string", "description": "logical name within the step, e.g. 'cleaned_pdb'" }
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["artifact_uri", "content_hash"],
+        "additionalProperties": false,
+        "properties": {
+          "artifact_uri": { "type": "string" },
+          "content_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "role": { "type": "string" }
+        }
+      }
+    },
+    "executor_calls": {
+      "type": "array",
+      "description": "Each subprocess/job invocation through the executor.",
+      "items": {
+        "type": "object",
+        "required": ["argv", "exit_status", "wall_time_s"],
+        "additionalProperties": false,
+        "properties": {
+          "argv": { "type": "array", "items": { "type": "string" } },
+          "cwd": { "type": "string" },
+          "env_resolved": { "type": "object", "additionalProperties": { "type": "string" } },
+          "exit_status": { "type": "integer" },
+          "wall_time_s": { "type": "number", "minimum": 0 },
+          "stdout_path": { "type": "string" },
+          "stderr_path": { "type": "string" },
+          "scheduler_metadata": { "type": "object" }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["class", "severity", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "class": { "enum": ["reproducibility", "chemistry", "physics", "io", "visualization"] },
+          "severity": { "enum": ["info", "warning", "blocking"] },
+          "message": { "type": "string" },
+          "context": { "type": "object" }
+        }
+      }
+    },
+    "failure_reason": {
+      "type": "object",
+      "description": "Present iff status='failed'. Structured failure taxonomy.",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": [
+            "PromptMismatchError", "UnsupportedResidueError", "MissingAtomError",
+            "ChainInconsistencyError", "TemplateMismatchError", "FFWaterUnavailableError",
+            "DisulfideMismatchError", "UnexpectedPromptError", "DialogueTimeoutError",
+            "NonZeroExitError", "ConsistencyGateFailure", "ChargeAccountingMismatch",
+            "EMDiverged", "EMStuck", "CoordinateIdMapNotInjective",
+            "RetainedWaterDisplaced", "ConfigMissing", "UnresolvedDecisions",
+            "CrashRecoveryStaleRunning"
+          ]
+        },
+        "message": { "type": "string" },
+        "context": { "type": "object" }
+      }
+    }
+  }
+}

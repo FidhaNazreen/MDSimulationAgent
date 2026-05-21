@@ -1,0 +1,25 @@
+[project]
+name = "mdagent"
+version = "0.1.0"
+description = "Agentic system for molecular dynamics simulation workflows (GROMACS)."
+authors = [
+    { name = "manu_jay", email = "manu.jayadharan@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "jsonschema>=4.20",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.15,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
