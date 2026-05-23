@@ -393,6 +393,95 @@ def cmd_init_project(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---- tutorials ---------------------------------------------------------
+
+
+def _tutorials_source_dir() -> Path:
+    from ._resources import _filesystem_path
+    return _filesystem_path("mdagent._resources.tutorials")
+
+
+def cmd_tutorials_extract(args: argparse.Namespace) -> int:
+    """Copy the packaged tutorial bundle (markdown + notebooks + CSS) into DIR.
+
+    If `--with-pdf`, additionally generate PDFs into DIR after extraction.
+    """
+    src = _tutorials_source_dir()
+    dest = Path(args.dir).resolve()
+    if dest.exists() and any(dest.iterdir()) and not args.force:
+        sys.stderr.write(
+            f"refusing to extract into non-empty directory: {dest}\n"
+            "Re-run with --force to overwrite bundle files in place. "
+            "Files outside the bundle are left untouched.\n"
+        )
+        return 1
+    dest.mkdir(parents=True, exist_ok=True)
+
+    written: list[str] = []
+    # Copy every .md, .ipynb, the _shared/ dir, and _build/build.py.
+    # Skip __init__.py package markers and __pycache__ caches.
+    for src_path in src.rglob("*"):
+        if not src_path.is_file():
+            continue
+        if src_path.name == "__init__.py":
+            continue
+        if "__pycache__" in src_path.parts:
+            continue
+        rel = src_path.relative_to(src)
+        dest_path = dest / rel
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src_path, dest_path)
+        written.append(str(dest_path))
+
+    # Generate notebooks alongside the markdown (always).
+    nb_payload = _tutorials_build_core(source=dest, out=dest, notebooks=True, pdf=False)
+
+    pdf_payload: dict[str, Any] = {"requested": False}
+    if args.with_pdf:
+        pdf_payload = _tutorials_build_core(source=dest, out=dest, notebooks=False, pdf=True)
+        pdf_payload["requested"] = True
+
+    payload = {
+        "action": "tutorials-extract",
+        "destination": str(dest),
+        "files_copied": len(written),
+        "notebooks": {"written": nb_payload.get("notebooks_written", [])},
+        "pdfs": pdf_payload,
+    }
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def cmd_tutorials_build(args: argparse.Namespace) -> int:
+    """Build notebooks and/or PDFs from a directory of markdown tutorials."""
+    payload = _tutorials_build_core(
+        source=Path(args.source).resolve(),
+        out=Path(args.out).resolve(),
+        notebooks=args.notebooks,
+        pdf=args.pdf,
+    )
+    print(json.dumps(payload, indent=2))
+    return 0 if not payload.get("pdf_errors") else 1
+
+
+def _tutorials_build_core(*, source: Path, out: Path, notebooks: bool, pdf: bool) -> dict[str, Any]:
+    """Invoke the build pipeline (defined in _resources/tutorials/_build/build.py).
+
+    Imported lazily so that base installs (without tutorials extras) can
+    still run extract+notebook generation without requiring weasyprint /
+    markdown-it-py to be installed.
+    """
+    from ._resources.tutorials._build import build as _build_mod
+    css_path = source / "_shared" / "pdf.css"
+    return _build_mod.build_all(
+        source=source,
+        out=out,
+        notebooks=notebooks,
+        pdf=pdf,
+        css_path=css_path if css_path.is_file() else None,
+    )
+
+
 # ---- self-test ---------------------------------------------------------
 
 
@@ -534,6 +623,24 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--no-install-skills", action="store_true",
                     help="Skip the implicit `install-skills --project DIR` call.")
     ip.set_defaults(func=cmd_init_project)
+
+    # tutorials
+    tu = sub.add_parser("tutorials", help="Tutorial-bundle helpers (extract + build).")
+    tu_sub = tu.add_subparsers(dest="tutorials_target", required=True)
+
+    tu_ext = tu_sub.add_parser("extract", help="Copy the packaged tutorial bundle into DIR.")
+    tu_ext.add_argument("dir", metavar="DIR", help="Target directory.")
+    tu_ext.add_argument("--with-pdf", action="store_true", help="Also generate PDFs (requires the 'tutorials' extra).")
+    tu_ext.add_argument("--force", action="store_true", help="Overwrite bundle files in DIR.")
+    tu_ext.set_defaults(func=cmd_tutorials_extract)
+
+    tu_build = tu_sub.add_parser("build", help="Build notebooks (and/or PDFs) from .md tutorials.")
+    tu_build.add_argument("--source", required=True, help="Directory of .md tutorial files.")
+    tu_build.add_argument("--out", required=True, help="Directory to write outputs into.")
+    tu_build.add_argument("--notebooks", action="store_true", default=True)
+    tu_build.add_argument("--no-notebooks", dest="notebooks", action="store_false")
+    tu_build.add_argument("--pdf", action="store_true", default=False)
+    tu_build.set_defaults(func=cmd_tutorials_build)
 
     # self-test
     st = sub.add_parser("self-test", help="Run an internal sanity check.")

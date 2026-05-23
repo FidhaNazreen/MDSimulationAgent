@@ -19,6 +19,11 @@ mdagent = "mdagent.cli:main"
 propka = [
     "propka>=3.5",
 ]
+tutorials = [
+    "propka>=3.5",
+    "markdown-it-py>=3,<4",
+    "weasyprint>=60,<70",
+]
 
 [dependency-groups]
 dev = [
@@ -26,6 +31,9 @@ dev = [
     "pytest-cov>=5.0",
     "nbformat>=5.10",
     "build>=1.0",
+    "markdown-it-py>=3,<4",
+    "weasyprint>=60,<70",
+    "propka>=3.5",
 ]
 
 [build-system]
