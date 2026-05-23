@@ -10,6 +10,7 @@ dependencies = [
     "jsonschema>=4.20",
     "pexpect>=4.9",
     "gemmi>=0.6",
+    "packaging>=24",
 ]
 
 [project.scripts]

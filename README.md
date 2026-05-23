@@ -51,6 +51,38 @@ Each phase produces immutable artifacts (gro/top/itp/tpr/log/xtc/json) +
 a per-step fingerprint that drives resume-after-crash and config-drift
 invalidation.
 
+## Shipping-ready packed bundle (`mdagent pack-bundle`)
+
+For a teammate who just wants to **run** MD simulations — not learn
+the architecture — produce a self-contained folder with everything
+wired up:
+
+```bash
+mdagent pack-bundle ./mdagent-bundle --with-vendor --with-propka --archive
+# → ./mdagent-bundle/                                          (drop-in folder)
+# → ./mdagent-bundle-macos-arm64-py311.tar.gz                  (drop-in archive)
+```
+
+The bundle contains a one-screen `README.md`, executable `setup.sh`
++ `run_simulation.sh`, pre-templated `.claude/skills/`, example
+`run_configs/`, a bundled CC0 1AKI structure for offline smoke, a
+`MANIFEST.json` with per-file sha256 + platform + Python version,
+and (optionally) a `vendor/wheels/` wheelhouse so `setup.sh` can
+install mdagent fully offline.
+
+On a teammate's machine:
+
+```bash
+tar -xzf mdagent-bundle-macos-arm64-py311.tar.gz
+cd mdagent-bundle
+./setup.sh --check-only        # detect-only (no install)
+./setup.sh                     # install mdagent
+./run_simulation.sh            # run a ~2-min MD on the bundled lysozyme
+```
+
+Verified end-to-end: `runs/<run-id>/REPORT.md` headline
+`readiness: **ready**`; Rg ≈ 1.42 nm; NPT density ≈ 1000 kg/m³.
+
 ## Tutorials
 
 Eight tutorials ship inside the wheel under

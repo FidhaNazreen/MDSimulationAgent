@@ -393,6 +393,40 @@ def cmd_init_project(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---- pack-bundle -------------------------------------------------------
+
+
+def cmd_pack_bundle(args: argparse.Namespace) -> int:
+    """Materialize a shipping-ready packed bundle into DIR."""
+    from . import pack
+    try:
+        payload = pack.materialize_bundle(
+            dest=Path(args.dir),
+            with_vendor=args.with_vendor or args.with_propka,
+            with_propka=args.with_propka,
+            force=args.force,
+            archive=args.archive,
+        )
+    except FileExistsError as e:
+        sys.stderr.write(f"{e}\n")
+        return 1
+    except RuntimeError as e:
+        sys.stderr.write(f"pack-bundle failed: {e}\n")
+        return 1
+    print(json.dumps({
+        "action": "pack-bundle",
+        "destination": payload["destination"],
+        "platform": payload["manifest"]["platform"],
+        "python": payload["manifest"]["python"],
+        "includes_vendor": payload["manifest"]["includes_vendor"],
+        "includes_propka": payload["manifest"]["includes_propka"],
+        "n_files": len(payload["manifest"]["files"]),
+        "n_wheels": len(payload["wheelhouse_files"]),
+        "archive_path": payload["archive_path"],
+    }, indent=2))
+    return 0
+
+
 # ---- tutorials ---------------------------------------------------------
 
 
@@ -623,6 +657,22 @@ def build_parser() -> argparse.ArgumentParser:
     ip.add_argument("--no-install-skills", action="store_true",
                     help="Skip the implicit `install-skills --project DIR` call.")
     ip.set_defaults(func=cmd_init_project)
+
+    # pack-bundle
+    pb = sub.add_parser(
+        "pack-bundle",
+        help="Materialize a shipping-ready packed Claude-skills + MD bundle into DIR.",
+    )
+    pb.add_argument("dir", metavar="DIR", help="Target directory (created if missing).")
+    pb.add_argument("--force", action="store_true",
+                    help="Overwrite bundle files in DIR if it's non-empty.")
+    pb.add_argument("--with-vendor", action="store_true",
+                    help="Include a full wheelhouse so `setup.sh` can install mdagent offline.")
+    pb.add_argument("--with-propka", action="store_true",
+                    help="Include PROPKA + its deps in the wheelhouse (implies --with-vendor).")
+    pb.add_argument("--archive", action="store_true",
+                    help="Also produce a DIR-<platform>-py311.tar.gz next to the folder.")
+    pb.set_defaults(func=cmd_pack_bundle)
 
     # tutorials
     tu = sub.add_parser("tutorials", help="Tutorial-bundle helpers (extract + build).")

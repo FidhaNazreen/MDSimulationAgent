@@ -474,6 +474,7 @@ source = { editable = "." }
 dependencies = [
     { name = "gemmi" },
     { name = "jsonschema" },
+    { name = "packaging" },
     { name = "pexpect" },
 ]
 
@@ -503,6 +504,7 @@ requires-dist = [
     { name = "gemmi", specifier = ">=0.6" },
     { name = "jsonschema", specifier = ">=4.20" },
     { name = "markdown-it-py", marker = "extra == 'tutorials'", specifier = ">=3,<4" },
+    { name = "packaging", specifier = ">=24" },
     { name = "pexpect", specifier = ">=4.9" },
     { name = "propka", marker = "extra == 'propka'", specifier = ">=3.5" },
     { name = "propka", marker = "extra == 'tutorials'", specifier = ">=3.5" },
