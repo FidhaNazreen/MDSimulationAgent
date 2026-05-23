@@ -105,6 +105,8 @@ before invoking. Most-asked knobs:
 | `production.nsteps` | `500000` (= 1 ns) | longer for science |
 | `production.enabled` | `true` | set `false` to stop after NPT |
 | `pipeline_mode` | `tutorial_reproduction` | also `general_md_prep` (drives `pdb2gmx -inter` for per-residue protonation) |
+| `protonation_policy` | `propka` | in general mode: use PROPKA-predicted pKa vs. configured `ph` (requires `propka` extra). Also `ff_default` (fixed pH-7). |
+| `ph` | `7.0` | only meaningful when `protonation_policy: propka` |
 | `visualization.mode` | `disabled` | use `md-visualize` skill to enable |
 
 ## Reading the output

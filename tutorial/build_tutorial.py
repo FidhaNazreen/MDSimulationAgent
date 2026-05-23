@@ -524,13 +524,14 @@ the list of titratable residues, applies pH-7 defaults, and drives
 - `general_md_prep` mode with `-inter` per-residue protonation + auto-disulfide acceptance.
 - H-bond count + NVT/NPT thermodynamics (Temperature/Pressure/Density) in the analysis output.
 - **Transferable installation** via `uv tool install` (slice 9): skills + schemas live inside the package; works from any directory after one install command.
+- **Standalone starter kit** via `mdagent init-project DIR` (slice 10): one command scaffolds a working MD-study repo with skills, configs, bundled 1AKI, and a verify script.
+- **PROPKA-driven protonation in general_md_prep mode** (slice 11): when `protonation_policy: "propka"` is set, the prep step runs PROPKA on the working PDB and the topology step picks per-residue `pdb2gmx -inter` answers from each predicted pKa vs. the configured `ph`. Verified: HIS-15 in lysozyme flips from HIE (neutral) at pH 7 to HIP (protonated) at pH 5.
 
 ## Coming next
 
 - Remote executor (HPC / cloud GPU).
 - More analyses (H-bonds, secondary-structure, residue-residue contacts).
 - Energy file parsing (`gmx energy`) for NVT/NPT thermodynamic plots.
-- PROPKA-driven protonation in general mode (currently fixed pH-7 defaults).
 
 This notebook will be regenerated as each lands.
 """),
@@ -543,7 +544,7 @@ def build_notebook() -> nbf.notebooknode.NotebookNode:
     nb["metadata"] = {
         "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
         "language_info": {"name": "python", "version": "3.11"},
-        "tutorial": {"slice": "slices 1-9 (transferable install)"},
+        "tutorial": {"slice": "slices 1-11 (PROPKA protonation)"},
     }
     return nb
 

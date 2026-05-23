@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mdagent/schemas/v0.1.0/protonation_analysis.schema.json",
+  "title": "ProtonationAnalysis",
+  "description": "Per-residue protonation analysis emitted by StructurePrep when protonation_policy=propka. The Topology agent consumes this to set per-residue pdb2gmx -inter answers based on each residue's predicted pKa vs. the configured pH.",
+  "type": "object",
+  "required": ["schema_version", "method", "ph_assumed", "residues"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "0.1.0" },
+    "method": {
+      "enum": ["propka", "ff_default", "preserve_crystal"],
+      "description": "How the per-residue states were derived."
+    },
+    "propka_version": { "type": "string" },
+    "ph_assumed": { "type": "number", "minimum": 0.0, "maximum": 14.0 },
+    "residues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["chain", "resid", "residue_type"],
+        "additionalProperties": false,
+        "properties": {
+          "chain": { "type": "string" },
+          "resid": { "type": "integer" },
+          "residue_type": { "type": "string", "description": "Three-letter code as read (HIS/ASP/GLU/LYS/ARG/CYS/...)." },
+          "pka_value": {
+            "type": ["number", "null"],
+            "description": "Predicted pKa. PROPKA emits 99.99 for non-titratable groups (e.g. CYS in a disulfide bond)."
+          },
+          "predicted_protonated": {
+            "type": ["boolean", "null"],
+            "description": "True iff pKa > ph_assumed (the group prefers to hold its proton)."
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

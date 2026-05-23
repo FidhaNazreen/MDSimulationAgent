@@ -1,0 +1,9 @@
+{
+  "manifest_schema_version": "1.0.0",
+  "mdagent_version": "0.1.0",
+  "managed_skills": [
+    "md-prep-structure",
+    "md-run-workflow",
+    "md-visualize"
+  ]
+}

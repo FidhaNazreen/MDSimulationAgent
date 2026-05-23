@@ -187,6 +187,24 @@ def check_for_run(
     else:
         checks["rcsb_reachable"] = CheckEntry(status="skipped", detail={"reason": "no_pdb_id"})
 
+    # PROPKA — only when the policy explicitly requests it AND the pipeline
+    # will run prep (which is always in v0, but be explicit).
+    if cfg.get_field("protonation_policy") == "propka" and "step_03_structure_prep" in planned_step_ids:
+        try:
+            from . import propka_helper
+            available = propka_helper.propka_available()
+        except ImportError:
+            available = False
+        checks["propka"] = CheckEntry(
+            status="ok" if available else "warning",
+            detail={"installed": available, "version": (propka_helper.propka_version() if available else None)},
+            suggestion=None if available else (
+                "protonation_policy=propka but the `propka` package is not installed. "
+                "Install via: uv tool install --force --with propka git+https://github.com/<user>/MDSimulationAgent@<tag>. "
+                "Falling back to fixed pH-7 defaults."
+            ),
+        )
+
     # Viewer — only when render requires it.
     viz_mode = cfg.get_field("visualization.mode") or "disabled"
     render = cfg.get_field("visualization.render") or "state_only"

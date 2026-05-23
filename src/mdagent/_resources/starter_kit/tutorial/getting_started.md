@@ -153,7 +153,19 @@ mdagent run-workflow --runs-root ./runs --config ./run_configs/lysozyme_short.js
   fetches 1AKI live from RCSB.
 - The `general_md_prep_example.json` config exercises
   `pipeline_mode: "general_md_prep"` which drives `pdb2gmx -inter` for
-  per-residue protonation prompts (LYS / ARG / ASP / GLU / HIS / CYS),
-  answering each from pH-7 defaults.
+  per-residue protonation prompts (LYS / ARG / ASP / GLU / HIS / CYS).
+  By default it uses fixed pH-7 defaults. **Set
+  `"protonation_policy": "propka"`** and install the optional `propka`
+  extra to switch to PROPKA-driven per-residue pKa predictions:
+
+  ```bash
+  uv tool install --force --with propka git+https://github.com/<user>/MDSimulationAgent@v0.1.0
+  ```
+
+  Then with `"protonation_policy": "propka"` and a chosen `"ph"` in
+  the config, the topology step picks each LYS/ASP/GLU/HIS answer
+  based on the residue's predicted pKa vs. that pH. For example
+  lysozyme HIS-15 (pKa ≈ 6.3) ends up as HIE (neutral) at pH 7 and
+  HIP (protonated) at pH 5.
 - For your own structures, drop them in `structures/` and copy a config
   to point at them via `input.structure_path`.

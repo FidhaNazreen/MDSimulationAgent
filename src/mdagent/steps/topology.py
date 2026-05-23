@@ -61,6 +61,33 @@ _PROTONATION_DEFAULTS: dict[str, str] = {
 }
 
 
+def _pka_aware_answer(prompt_name: str, pka_value: float | None, ph: float) -> tuple[str, str]:
+    """Pick the pdb2gmx option index based on a PROPKA-style pKa vs pH.
+
+    Returns (answer_index, source). When pka_value is None (no propka
+    info) the answer is the fixed pH-7 default and source is
+    "policy_default_pH7"; otherwise it's "propka@pH{ph}".
+
+    The mapping mirrors `_PROTONATION_DEFAULTS` keys; option indices
+    match the OPLS-AA pdb2gmx prompt ordering (verified in slice 7).
+    """
+    if pka_value is None or pka_value == 99.99:
+        return _PROTONATION_DEFAULTS.get(prompt_name, "0"), "policy_default_pH7"
+    protonated = pka_value > ph
+    source = f"propka@pH{ph}"
+    if prompt_name == "LYSINE":
+        return ("1" if protonated else "0"), source
+    if prompt_name == "ASPARTIC ACID" or prompt_name == "GLUTAMIC ACID":
+        return ("1" if protonated else "0"), source
+    if prompt_name == "HISTIDINE":
+        # OPLS HIS options: 0=HID, 1=HIE, 2=HIP. Default neutral = HIE.
+        return ("2" if protonated else "1"), source
+    # ARG / GLN / CYS: keep the fixed default — these are largely
+    # unaffected by physiological pH or governed by separate flows
+    # (CYS pairs go through SS_YN; ARG is always charged in practice).
+    return _PROTONATION_DEFAULTS.get(prompt_name, "0"), source
+
+
 def _termini_answer(prompt_kind: PromptKind, cfg_field: str | None) -> str:
     # Mapping from configured termini state to pdb2gmx option index for OPLS-AA:
     #   N-term: 0=NH3+, 1=NH2, 2=Zwitter, 3=None
@@ -87,12 +114,13 @@ def run(ctx: StepContext) -> StepOutcome:
 
     # In general_md_prep mode, drive per-residue prompts via -inter. The
     # plan is built from the prep step's titratable_residues list (read
-    # from observations.json, which sits next to working.pdb).
+    # from observations.json) plus the optional propka-driven pKa
+    # predictions (read from protonation_analysis.json if it exists).
     use_inter = (pipeline_mode == "general_md_prep")
     titratable_residues: list[dict[str, Any]] = []
+    pka_by_key: dict[tuple[str, int, str], dict[str, Any]] = {}
+    protonation_method = "ff_default_pH7"
     if use_inter:
-        # observations.json lives in the prep step's dir, identifiable by
-        # walking up the run root.
         obs_path = ctx.run_root / "step_03_structure_prep" / "observations.json"
         if obs_path.is_file():
             try:
@@ -100,6 +128,16 @@ def run(ctx: StepContext) -> StepOutcome:
                 titratable_residues = list(obs.get("titratable_residues", []))
             except (OSError, json.JSONDecodeError):
                 titratable_residues = []
+        pka_path = ctx.run_root / "step_03_structure_prep" / "protonation_analysis.json"
+        if pka_path.is_file():
+            try:
+                analysis = json.loads(pka_path.read_text())
+                for entry in analysis.get("residues", []):
+                    key = (entry["chain"], int(entry["resid"]), entry["residue_type"])
+                    pka_by_key[key] = entry
+                protonation_method = analysis.get("method", "propka")
+            except (OSError, json.JSONDecodeError, KeyError):
+                pka_by_key = {}
 
     # Copy working.pdb into the step dir so pdb2gmx's outputs are
     # co-located with their input.
@@ -114,17 +152,24 @@ def run(ctx: StepContext) -> StepOutcome:
     # Build the per-residue protonation_decisions list (only populated in
     # general mode; in tutorial mode pdb2gmx auto-resolves).
     protonation_decisions: list[dict[str, Any]] = []
+    ph = float(cfg.get_field("ph") or 7.0)
     if use_inter:
         for res in titratable_residues:
             restype = res["prompt_name"]
-            answer = _PROTONATION_DEFAULTS.get(restype, "0")
+            # Look up pKa by (chain, resid, residue_name). pKa file keys
+            # use the three-letter code (HIS/ASP/...).
+            pka_entry = pka_by_key.get((res["chain"], int(res["resid"]), res["residue_name"]))
+            pka_value = pka_entry["pka_value"] if pka_entry else None
+            answer, source = _pka_aware_answer(restype, pka_value, ph)
             protonation_decisions.append({
                 "chain": res["chain"],
                 "resid": int(res["resid"]),
                 "residue_name": res["residue_name"],
                 "prompt_name": restype,
                 "answer_index": answer,
-                "source": "policy_default_pH7",
+                "source": source,
+                "pka_value": pka_value,
+                "ph_assumed": ph,
             })
 
     topology_plan: dict[str, Any] = {

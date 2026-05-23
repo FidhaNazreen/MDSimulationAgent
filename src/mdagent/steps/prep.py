@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import Any
 
 from ..hashing import sha256_file, sha256_text
 from .base import StepContext, StepOutcome, find_input
@@ -98,11 +99,59 @@ def run(ctx: StepContext) -> StepOutcome:
     out_pdb = ctx.step_dir / "working.pdb"
     out_pdb.write_bytes(src_path.read_bytes())
 
+    outputs: list[dict[str, str]] = [
+        {"artifact_uri": f"local://{out_pdb}", "content_hash": sha256_file(out_pdb), "role": "working_pdb"},
+        {"artifact_uri": f"local://{obs_path}", "content_hash": sha256_text(obs_path.read_text()), "role": "observations"},
+        {"artifact_uri": f"local://{mut_path}", "content_hash": sha256_text(mut_path.read_text()), "role": "mutations"},
+    ]
+    warnings: list[dict[str, Any]] = []
+    extra: dict[str, Any] = {
+        "n_chains": len(observations["chains"]),
+        "n_his": len(his_residues),
+        "n_cys": len(cys_residues),
+    }
+
+    # ---- PROPKA-driven protonation analysis (optional) ---------------
+    # Runs when protonation_policy=propka AND the propka library is
+    # importable. Skipped silently otherwise — the downstream Topology
+    # step then falls back to fixed pH-7 defaults.
+    policy = ctx.run_config.get_field("protonation_policy") or "propka"
+    if policy == "propka":
+        from .. import propka_helper
+        if propka_helper.propka_available():
+            ph = float(ctx.run_config.get_field("ph") or 7.0)
+            try:
+                analysis = propka_helper.analyze(out_pdb, ph=ph)
+                pka_path = ctx.step_dir / "protonation_analysis.json"
+                pka_path.write_text(json.dumps(analysis, indent=2, sort_keys=False))
+                outputs.append({
+                    "artifact_uri": f"local://{pka_path}",
+                    "content_hash": sha256_text(pka_path.read_text()),
+                    "role": "protonation_analysis",
+                })
+                extra["protonation_method"] = "propka"
+                extra["protonation_n_residues"] = len(analysis["residues"])
+            except (RuntimeError, ImportError) as e:
+                warnings.append({
+                    "class": "chemistry",
+                    "severity": "warning",
+                    "message": f"PROPKA analysis failed; falling back to pH-7 defaults: {e}",
+                })
+                extra["protonation_method"] = "ff_default_fallback"
+        else:
+            warnings.append({
+                "class": "chemistry",
+                "severity": "info",
+                "message": (
+                    "protonation_policy=propka but the `propka` package is not installed; "
+                    "falling back to fixed pH-7 defaults. "
+                    "Install via: uv tool install --force --with propka git+...@v0.1.0"
+                ),
+            })
+            extra["protonation_method"] = "ff_default_fallback"
+
     return StepOutcome(
-        outputs=[
-            {"artifact_uri": f"local://{out_pdb}", "content_hash": sha256_file(out_pdb), "role": "working_pdb"},
-            {"artifact_uri": f"local://{obs_path}", "content_hash": sha256_text(obs_path.read_text()), "role": "observations"},
-            {"artifact_uri": f"local://{mut_path}", "content_hash": sha256_text(mut_path.read_text()), "role": "mutations"},
-        ],
-        extra={"n_chains": len(observations["chains"]), "n_his": len(his_residues), "n_cys": len(cys_residues)},
+        outputs=outputs,
+        warnings=warnings,
+        extra=extra,
     )
