@@ -12,7 +12,7 @@ single natural-language instruction. Ships as:
 
 ```bash
 brew install uv                        # macOS — or: curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.1.0
+uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0
 brew install gromacs                   # for any step past prep
 mdagent install-skills --user          # → ~/.claude/skills/ (or use --project DIR)
 ```
@@ -147,7 +147,7 @@ critiques/                 # adversarial gpt-critique sessions that hardened the
 ## Development
 
 ```bash
-git clone https://github.com/<user>/MDSimulationAgent
+git clone https://github.com/mjayadharan/MDSimulationAgent
 cd MDSimulationAgent
 uv sync
 uv run pytest                  # fast suite (~9 s)

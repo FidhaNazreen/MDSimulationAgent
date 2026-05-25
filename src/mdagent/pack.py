@@ -102,15 +102,15 @@ def _template_skill_for_bundle(skill_md_text: str) -> str:
     # the canonical install snippet and swap in a "run ./setup.sh" line.
     replacements = [
         (
-            "uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.1.0",
+            "uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0",
             "(packed bundle) run ./setup.sh from the bundle root",
         ),
         (
-            'uv tool install --force "mdagent[propka] @ git+https://github.com/<user>/MDSimulationAgent@v0.1.0"',
+            'uv tool install --force "mdagent[propka] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"',
             "(packed bundle) run ./setup.sh from the bundle root",
         ),
         (
-            'uv tool install --force "mdagent[tutorials] @ git+https://github.com/<user>/MDSimulationAgent@v0.1.0"',
+            'uv tool install --force "mdagent[tutorials] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"',
             "(packed bundle) run ./setup.sh from the bundle root",
         ),
     ]
@@ -304,9 +304,9 @@ if [[ "$INCLUDES_VENDOR" == "True" ]]; then
     "$SPEC"
 else
   if [[ "$INCLUDES_PROPKA" == "True" ]]; then
-    ONLINE_SPEC="mdagent[propka] @ git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+    ONLINE_SPEC="mdagent[propka] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
   else
-    ONLINE_SPEC="mdagent @ git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+    ONLINE_SPEC="mdagent @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
   fi
   echo "==> Installing online: $ONLINE_SPEC"
   uv tool install --force "$ONLINE_SPEC"

@@ -15,7 +15,7 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 # 1. mdagent installed?
 command -v mdagent >/dev/null 2>&1 || {
   echo "✗ mdagent not found on PATH."
-  echo "  Install: uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+  echo "  Install: uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
   exit 1
 }
 echo "  $(mdagent --version)"

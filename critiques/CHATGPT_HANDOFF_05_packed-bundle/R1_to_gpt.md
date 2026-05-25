@@ -113,7 +113,7 @@ command -v gmx >/dev/null 2>&1 || {
 if [[ -f vendor/mdagent-0.1.0-py3-none-any.whl ]]; then
   uv tool install --force "$(pwd)/vendor/mdagent-0.1.0-py3-none-any.whl"[propka]
 else
-  uv tool install --force "mdagent[propka] @ git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+  uv tool install --force "mdagent[propka] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
 fi
 mdagent --version
 echo "==> Ready. Try: ./run_simulation.sh"

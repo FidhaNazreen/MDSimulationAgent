@@ -29,7 +29,7 @@
    **WHAT TO DO:** Build the online spec separately:
 
    ```bash
-   ONLINE_SPEC="mdagent @ git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+   ONLINE_SPEC="mdagent @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
    [[ "$INCLUDES_PROPKA" == "True" ]] && ONLINE_SPEC="mdagent[propka] @ git+https://..."
    ```
 

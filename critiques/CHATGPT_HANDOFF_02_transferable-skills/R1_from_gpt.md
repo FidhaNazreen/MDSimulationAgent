@@ -3,7 +3,7 @@ Docs checked: uv tools docs (https://docs.astral.sh/uv/guides/tools/) and Claude
 1. **The proposed uv install command is wrong.**  
 `uv tool install --from git+https://... mdagent` is `uvx` syntax, not `uv tool install` syntax. Current `uv tool install --help` takes one `<PACKAGE>` and no `--from`.  
 Why it matters: the first install command in the skill fails.  
-What to do: use `uv tool install git+https://github.com/<user>/MDSimulationAgent` or a pinned ref: `uv tool install git+https://github.com/<user>/MDSimulationAgent@v0.1.0`.
+What to do: use `uv tool install git+https://github.com/mjayadharan/MDSimulationAgent` or a pinned ref: `uv tool install git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0`.
 
 2. **P1 load-bearing questions are Q1/Q4, Q2, and Q5.**  
 Install/discovery, resource bundling, and GROMACS compatibility decide whether transferability works at all. Version sentinels, PyPI naming, tutorial style, and schema-directory aesthetics are secondary for v0.
@@ -19,9 +19,9 @@ Why it matters: multiple install paths double the support matrix.
 What to do: document `brew install uv` / official uv installer / `pipx install uv`, then one mdagent install path.
 
 5. **Git install from an unpinned branch is not reproducible.**  
-`git+https://github.com/<user>/MDSimulationAgent` means “whatever main is today.”  
+`git+https://github.com/mjayadharan/MDSimulationAgent` means “whatever main is today.”  
 Why it matters: skill text and CLI can drift silently across teammates.  
-What to do: recommend tags: `git+https://github.com/<user>/MDSimulationAgent@v0.1.0`; use `uv tool upgrade mdagent --reinstall` or reinstall with a new tag.
+What to do: recommend tags: `git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0`; use `uv tool upgrade mdagent --reinstall` or reinstall with a new tag.
 
 6. **Resource bundling proposal is incomplete.**  
 `importlib.resources.files("mdagent") / "_resources" / ...` returns a Traversable, not guaranteed to be a concrete `Path`. Your code passes `schemas_dir()` into `sha256_dir()`, which immediately wraps it in `Path()` and uses `rglob`.  

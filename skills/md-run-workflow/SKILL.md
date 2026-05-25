@@ -23,7 +23,7 @@ uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.
 # 3. Make sure GROMACS is on PATH:
 brew install gromacs   # macOS
 
-# 4. (Optional) install the skills under the project or user .claude dir:
+# 4. (Optional) install the skills under the project or user .Codex dir:
 mdagent install-skills --user                 # makes them available everywhere
 # OR  mdagent install-skills --project /path/to/myproject
 ```

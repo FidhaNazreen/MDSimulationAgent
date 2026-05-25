@@ -7,7 +7,7 @@ follow-ups.
 ## Section 1 — Per-issue acknowledgments
 
 **R1-1** (`uv tool install --from git+...` is wrong syntax). **Accept.**
-Correct form is `uv tool install git+https://github.com/<user>/MDSimulationAgent@v0.1.0`.
+Correct form is `uv tool install git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0`.
 README + skill body will use the tagged form.
 
 **R1-2** (P1 load-bearing = Q1+Q4 install/discovery, Q2 resource bundling,

@@ -204,7 +204,7 @@ if [[ -d "$BUNDLE_ROOT/vendor/wheels" ]]; then
     --with propka mdagent
 else
   echo "==> Installing mdagent from git tag (online)…"
-  uv tool install --force "mdagent[propka] @ git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+  uv tool install --force "mdagent[propka] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
 fi
 echo "  ✓ $(mdagent --version)"
 

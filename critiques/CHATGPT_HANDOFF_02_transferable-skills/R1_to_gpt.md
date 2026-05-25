@@ -87,7 +87,7 @@ can use without checking out the source.
 ```bash
 # Option A (preferred): uv tool install — puts an isolated `mdagent`
 # binary on PATH, like pipx but uv-native.
-uv tool install --from git+https://github.com/<user>/MDSimulationAgent mdagent
+uv tool install --from git+https://github.com/mjayadharan/MDSimulationAgent mdagent
 
 # Option B (fallback): direct uv tool install from a local checkout.
 uv tool install /path/to/MDSimulationAgent

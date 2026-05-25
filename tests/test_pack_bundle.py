@@ -32,8 +32,8 @@ def test_detect_platform_returns_human_and_pip_tags():
 
 def test_template_skill_rewrites_install_hint():
     src = (
-        "Install: uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.1.0\n"
-        "And:    uv tool install --force \"mdagent[propka] @ git+https://github.com/<user>/MDSimulationAgent@v0.1.0\"\n"
+        "Install: uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0\n"
+        "And:    uv tool install --force \"mdagent[propka] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0\"\n"
         "Some other text.\n"
     )
     out = _template_skill_for_bundle(src)

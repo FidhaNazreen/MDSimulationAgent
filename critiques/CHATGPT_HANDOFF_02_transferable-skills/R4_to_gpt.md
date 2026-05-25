@@ -33,7 +33,7 @@ the binary:
 ```bash
 command -v mdagent >/dev/null 2>&1 || {
   echo "mdagent not found on PATH."
-  echo "Install: uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+  echo "Install: uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
   echo "PATH: ensure '$(uv tool dir --bin 2>/dev/null || echo \"<uv tool bin dir>\")' is on PATH."
   exit 1
 }
@@ -129,7 +129,7 @@ Verbatim, used by all three skills with their own `--skill-name` / `--skill-vers
 ```bash
 command -v mdagent >/dev/null 2>&1 || {
   echo "mdagent not found on PATH."
-  echo "Install: uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+  echo "Install: uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
   echo "PATH: ensure '$(uv tool dir --bin 2>/dev/null || echo \"<uv tool bin dir>\")' is on PATH."
   exit 1
 }

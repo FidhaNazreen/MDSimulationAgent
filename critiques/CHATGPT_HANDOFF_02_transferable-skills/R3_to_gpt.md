@@ -43,7 +43,7 @@ Doctor blocks the run only when `required_for_render_mode AND NOT renderer_avail
 
 **R2-12** (`uv tool upgrade` ambiguous when source is a pinned tag). **Accept.** README documents upgrades as:
   ```
-  uv tool install --force git+https://github.com/<user>/MDSimulationAgent@<NEW_TAG>
+  uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@<NEW_TAG>
   ```
   Not `uv tool upgrade mdagent` (which would re-install the same pinned tag).
 
@@ -129,7 +129,7 @@ mdagent doctor --json \
   > /tmp/mdagent_doctor.json || {
     cat /tmp/mdagent_doctor.json
     echo
-    echo "Install or upgrade: uv tool install --force git+https://github.com/<user>/MDSimulationAgent@v0.1.0"
+    echo "Install or upgrade: uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
     echo "PATH: ensure '$(uv tool dir --bin 2>/dev/null || echo \"<uv tool bin dir>\")' is on PATH."
     exit 1
   }
