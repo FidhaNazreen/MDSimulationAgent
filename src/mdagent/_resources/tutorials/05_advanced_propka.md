@@ -127,7 +127,7 @@ pipeline falls back to fixed pH-7 defaults. Re-install with the
 extra to enable:
 
 ```bash
-uv tool install --force "mdagent[tutorials] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+uv tool install --force "mdagent[tutorials] @ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
 ```
 
 (`mdagent[tutorials]` ships PROPKA + the notebook/PDF build deps;

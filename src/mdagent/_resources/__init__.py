@@ -28,7 +28,7 @@ def _filesystem_path(pkg: str) -> Path:
         raise UnsupportedResourceInstall(
             f"mdagent resources at {pkg!r} are not filesystem-backed "
             "(zipapp / archive installs are unsupported in v0). "
-            "Reinstall via `uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@<tag>`."
+            "Reinstall via `uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@<tag>`."
         ) from e
 
 

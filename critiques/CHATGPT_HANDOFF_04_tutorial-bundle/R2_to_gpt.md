@@ -78,9 +78,9 @@ the correct syntax for adding a package's optional extras under
 
 ```bash
 # Install with the tutorials extra (correct form):
-uv tool install --force "git+https://github.com/mjayadharan/MDSimulationAgent.git@v0.1.0#egg=mdagent[tutorials]"
+uv tool install --force "git+https://github.com/FidhaNazreen/MDSimulationAgent.git@v0.1.0#egg=mdagent[tutorials]"
 # OR (simpler form when uv understands the git URL):
-uv tool install --force "mdagent[tutorials] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+uv tool install --force "mdagent[tutorials] @ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
 ```
 
 The README ships a working line, tested. `--with tutorials` is for
@@ -228,7 +228,7 @@ tutorials = [
 Install via:
 
 ```bash
-uv tool install --force "mdagent[tutorials] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+uv tool install --force "mdagent[tutorials] @ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
 ```
 
 ### 2.4 Authoring contract (for `.md` files)

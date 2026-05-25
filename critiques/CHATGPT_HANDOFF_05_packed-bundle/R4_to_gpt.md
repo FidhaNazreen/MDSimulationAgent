@@ -44,9 +44,9 @@ uses proper PEP 508 form with explicit space before `@`:
 
 ```bash
 if [[ "$INCLUDES_PROPKA" == "True" ]]; then
-  ONLINE_SPEC="mdagent[propka] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+  ONLINE_SPEC="mdagent[propka] @ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
 else
-  ONLINE_SPEC="mdagent @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+  ONLINE_SPEC="mdagent @ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
 fi
 uv tool install --force "$ONLINE_SPEC"
 ```
@@ -132,9 +132,9 @@ else
   # Online install path
   INCLUDES_PROPKA="$(python3 -c "import json; print(json.load(open('MANIFEST.json'))['includes_propka'])")"
   if [[ "$INCLUDES_PROPKA" == "True" ]]; then
-    ONLINE_SPEC="mdagent[propka] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+    ONLINE_SPEC="mdagent[propka] @ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
   else
-    ONLINE_SPEC="mdagent @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+    ONLINE_SPEC="mdagent @ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
   fi
   uv tool install --force "$ONLINE_SPEC"
 fi

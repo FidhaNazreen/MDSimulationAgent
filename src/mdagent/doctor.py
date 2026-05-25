@@ -200,7 +200,7 @@ def check_for_run(
             detail={"installed": available, "version": (propka_helper.propka_version() if available else None)},
             suggestion=None if available else (
                 "protonation_policy=propka but the `propka` package is not installed. "
-                "Install via: uv tool install --force --with propka git+https://github.com/mjayadharan/MDSimulationAgent@<tag>. "
+                "Install via: uv tool install --force --with propka git+https://github.com/FidhaNazreen/MDSimulationAgent@<tag>. "
                 "Falling back to fixed pH-7 defaults."
             ),
         )
@@ -254,7 +254,7 @@ def standalone(
             detail={"installed": installed, "required": min_version},
             suggestion=None if ok else (
                 f"mdagent {installed} is older than required {min_version}. "
-                "Upgrade: uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@<newer_tag>"
+                "Upgrade: uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@<newer_tag>"
             ),
         )
 

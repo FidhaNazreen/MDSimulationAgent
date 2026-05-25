@@ -18,7 +18,7 @@ brew install uv     # macOS
 # OR  curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Install mdagent as a uv tool (pinned to a tag for reproducibility):
-uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0
+uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0
 
 # 3. Make sure GROMACS is on PATH:
 brew install gromacs   # macOS
@@ -40,7 +40,7 @@ mdagent doctor --gmx-required
 ```bash
 command -v mdagent >/dev/null 2>&1 || {
   echo "mdagent not found on PATH."
-  echo "Install: uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+  echo "Install: uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
   echo "PATH: ensure '$(uv tool dir --bin 2>/dev/null || echo "<uv tool bin dir>")' is on PATH."
   exit 1
 }

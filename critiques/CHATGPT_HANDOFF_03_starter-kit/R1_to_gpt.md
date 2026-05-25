@@ -7,7 +7,7 @@
 ### What's already built
 
 `mdagent` ships as an installable Python tool (`uv tool install
-git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0`) with three
+git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0`) with three
 Claude skills packaged inside the wheel: `md-run-workflow`,
 `md-prep-structure`, `md-visualize`. The CLI exposes:
 

@@ -12,7 +12,7 @@ If you don't already have `mdagent` and GROMACS:
 brew install uv     # macOS — or: curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # 2. Install mdagent (pinned to a git tag for reproducibility)
-uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0
+uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0
 
 # 3. Install GROMACS (only needed for steps past prep)
 brew install gromacs    # macOS
@@ -101,7 +101,7 @@ installed `mdagent` package. Common knobs:
 ## Refreshing skills after upgrading mdagent
 
 ```bash
-uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@<newer_tag>
+uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@<newer_tag>
 mdagent install-skills --project . --force
 ```
 

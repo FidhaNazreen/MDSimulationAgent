@@ -223,7 +223,7 @@ def detailed_story():
           "The README uses a placeholder GitHub path; replace it with the real remote or a local checkout path."),
         code_block("""
 brew install uv
-uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0
+uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0
 brew install gromacs
 mdagent install-skills --user
 
@@ -442,7 +442,7 @@ def short_story():
         p("Quick Start", "h1"),
         code_block("""
 brew install uv
-uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0
+uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0
 brew install gromacs
 mdagent install-skills --user
 

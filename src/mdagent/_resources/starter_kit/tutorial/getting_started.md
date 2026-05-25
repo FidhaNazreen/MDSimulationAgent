@@ -13,7 +13,7 @@ not yet installed:
 
 ```bash
 brew install uv     # macOS — or: curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0
+uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0
 brew install gromacs
 ```
 
@@ -159,7 +159,7 @@ mdagent run-workflow --runs-root ./runs --config ./run_configs/lysozyme_short.js
   extra to switch to PROPKA-driven per-residue pKa predictions:
 
   ```bash
-  uv tool install --force --with propka git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0
+  uv tool install --force --with propka git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0
   ```
 
   Then with `"protonation_policy": "propka"` and a chosen `"ph"` in

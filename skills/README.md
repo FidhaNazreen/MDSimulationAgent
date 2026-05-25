@@ -14,7 +14,7 @@ molecular-dynamics pipeline from a single natural-language prompt.
 ```bash
 # 1. Install the mdagent CLI
 brew install uv                          # macOS — or: curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install --force git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0
+uv tool install --force git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0
 
 # 2. Install GROMACS (required for topology onwards)
 brew install gromacs                     # macOS
@@ -70,4 +70,4 @@ Claude picks the right skill automatically.
 ## Source
 
 Full source, tutorials, and tests:
-<https://github.com/mjayadharan/MDSimulationAgent>
+<https://github.com/FidhaNazreen/MDSimulationAgent>

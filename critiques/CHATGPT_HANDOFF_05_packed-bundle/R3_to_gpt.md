@@ -161,7 +161,7 @@ if [[ -d "$BUNDLE_ROOT/vendor/wheels" ]]; then
     --find-links="$BUNDLE_ROOT/vendor/wheels" \
     "$SPEC"
 else
-  uv tool install --force "${SPEC}@ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+  uv tool install --force "${SPEC}@ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
 fi
 ```
 

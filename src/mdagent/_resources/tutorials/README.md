@@ -16,7 +16,7 @@ Each tutorial below ships in three formats:
 
 ```bash
 brew install uv     # macOS — or: curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install --force "mdagent[tutorials] @ git+https://github.com/mjayadharan/MDSimulationAgent@v0.1.0"
+uv tool install --force "mdagent[tutorials] @ git+https://github.com/FidhaNazreen/MDSimulationAgent@v0.1.0"
 brew install gromacs    # for any tutorial that exercises the pipeline
 mdagent install-skills --user
 ```
