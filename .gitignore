@@ -29,3 +29,9 @@ Thumbs.db
 
 # Critique-loop transient artifacts (kept but session logs ignored)
 critiques/*/.codex_log_*.txt
+
+# Development artifacts — not for public repo
+critiques/
+.claude-context/
+.agents/
+.claude/
